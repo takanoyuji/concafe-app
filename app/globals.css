@@ -1,26 +1,127 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-night-950: #06040f;
+  --color-night-900: #0d0820;
+  --color-night-800: #160e3a;
+  --color-night-700: #1e1354;
+  --color-neon-purple: #c026d3;
+  --color-neon-violet: #7c3aed;
+  --color-neon-blue: #2563eb;
+  --color-neon-pink: #ec4899;
+  --color-neon-cyan: #06b6d4;
+  --color-star-400: #fbbf24;
+  --color-star-300: #fde68a;
+  --color-star-200: #fef3c7;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #06040f;
+  --foreground: #f0eafa;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+}
+
+.glass {
+  background: color-mix(in srgb, white 8%, transparent);
+  border: 1px solid color-mix(in srgb, white 15%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 1rem;
+}
+
+.glass-dark {
+  background: color-mix(in srgb, #06040f 70%, transparent);
+  border: 1px solid color-mix(in srgb, #7c3aed 30%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 1rem;
+}
+
+.neon-glow-purple {
+  box-shadow: 0 0 10px color-mix(in srgb, #c026d3 70%, transparent),
+              0 0 30px color-mix(in srgb, #c026d3 40%, transparent),
+              0 0 60px color-mix(in srgb, #c026d3 20%, transparent);
+}
+
+.text-neon-glow {
+  text-shadow: 0 0 10px #c026d3, 0 0 25px #7c3aed, 0 0 50px #c026d3;
+}
+
+.text-star-glow {
+  text-shadow: 0 0 8px #fbbf24, 0 0 20px #fbbf24;
+}
+
+.star-bg {
+  background:
+    radial-gradient(ellipse at top, #160e3a 0%, #06040f 60%),
+    radial-gradient(ellipse at bottom right, #0d0820 0%, transparent 60%);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #fbbf24 0%, #c026d3 50%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #c026d3);
+  color: white;
+  padding: 0.75rem 2rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  transition: all 0.3s;
+  display: inline-block;
+  text-align: center;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px color-mix(in srgb, #c026d3 60%, transparent);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #f0eafa;
+  padding: 0.75rem 2rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  border: 1px solid color-mix(in srgb, white 30%, transparent);
+  transition: all 0.3s;
+  display: inline-block;
+  text-align: center;
+}
+
+.btn-secondary:hover {
+  border-color: #7c3aed;
+  background: color-mix(in srgb, #7c3aed 15%, transparent);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: color-mix(in srgb, white 8%, transparent);
+  border: 1px solid color-mix(in srgb, white 20%, transparent);
+  border-radius: 0.5rem;
+  color: #f0eafa;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-field:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #7c3aed 30%, transparent);
+}
+
+.input-field::placeholder {
+  color: color-mix(in srgb, #f0eafa 40%, transparent);
 }

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install bcryptjs jose nodemailer zod)",
+      "Bash(npm install -D @types/bcryptjs @types/nodemailer tsx)",
+      "Bash(wsl -e bash -c \"ls /home/takan/\")",
+      "Bash(wsl -e bash -c \"cd /home/takan/concafe-app && npm install bcryptjs jose nodemailer zod && npm install -D @types/bcryptjs @types/nodemailer tsx\")",
+      "Bash(wsl -e bash -c \"cd /home/takan/concafe-app && npx prisma migrate dev --name init 2>&1\")",
+      "Bash(wsl -e bash -c \"cd /home/takan/concafe-app && npm install better-sqlite3 @prisma/adapter-better-sqlite3 && npm install -D @types/better-sqlite3\")",
+      "Bash(wsl -e bash -c \"cd /home/takan/concafe-app && npx prisma generate 2>&1\")",
+      "Bash(wsl -e bash -c \"cd /home/takan/concafe-app && npx tsx prisma/seed.ts 2>&1\")",
+      "Bash(wsl -e bash -c \"cat /home/takan/concafe-app/node_modules/@prisma/adapter-better-sqlite3/dist/index.js | head -30\")",
+      "Bash(wsl -e bash -c \"node -e \"\"const m = require\\(''@prisma/adapter-better-sqlite3''\\); console.log\\(Object.keys\\(m\\)\\)\"\" 2>&1\")",
+      "Bash(wsl -e bash -c \"cd /home/takan/concafe-app && node -e \"\"const m = require\\(''@prisma/adapter-better-sqlite3''\\); console.log\\(Object.keys\\(m\\)\\)\"\" 2>&1\")",
+      "Bash(wsl -e bash -c \"cat /home/takan/concafe-app/node_modules/@prisma/adapter-better-sqlite3/dist/index.js | grep -A 20 ''createBetterSQLite3Client''\")",
+      "Bash(wsl -e bash -c \"cd /home/takan/concafe-app && npx tsc --noEmit 2>&1\")",
+      "Bash(wsl -e bash -c \"cp /home/takan/concafe-app/middleware.ts /home/takan/concafe-app/proxy.ts && rm /home/takan/concafe-app/middleware.ts && echo ''renamed''\")",
+      "Bash(wsl -e bash -c \"grep -rn ''parsed.error.flatten\\(\\)'' /home/takan/concafe-app/app/api/ | awk -F: ''{print $1}'' | sort -u\")",
+      "Bash(wsl -e bash -c \"grep -rn ''parsed.error.flatten\\(\\)'' /home/takan/concafe-app/app/api/\")",
+      "Bash(wsl -e bash -c \"sed -i ''s/parsed\\\\.error\\\\.flatten\\(\\)/parsed.error.issues/g'' /home/takan/concafe-app/app/api/titles/route.ts /home/takan/concafe-app/app/api/titles/\\\\[id\\\\]/route.ts /home/takan/concafe-app/app/api/points/gift/route.ts /home/takan/concafe-app/app/api/points/grant/route.ts /home/takan/concafe-app/app/api/auth/reset-password/route.ts /home/takan/concafe-app/app/api/auth/signup/route.ts /home/takan/concafe-app/app/api/cast/route.ts && echo done\")",
+      "Bash(wsl -e bash -c \"sed -i ''s/parsed\\\\.error\\\\.flatten\\(\\)/parsed.error.issues/g'' /home/takan/concafe-app/app/api/cast/\\\\[id\\\\]/route.ts && echo done\")",
+      "Bash(wsl -e bash -c \"pkill -f ''next dev'' 2>/dev/null; pkill -f ''next-server'' 2>/dev/null; sleep 1; echo ''killed''\")",
+      "Bash(wsl -e bash -c \"fuser -k 3000/tcp 2>/dev/null; fuser -k 3001/tcp 2>/dev/null; rm -f /home/takan/concafe-app/.next/dev/lock; echo ''done''\")"
+    ]
+  }
+}

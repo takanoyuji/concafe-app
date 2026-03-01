@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  passwordHash       String
+  role               String   @default("CUSTOMER")
+  emailVerified      Boolean  @default(false)
+  mustChangePassword Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  verificationTokens  EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  ledgerFrom          PointLedger[] @relation("LedgerFromUser")
+  ledgerTo            PointLedger[] @relation("LedgerToUser")
+}
+
+model Store {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  address   String
+  mapQuery  String
+  createdAt DateTime @default(now())
+
+  casts Cast[]
+}
+
+model Cast {
+  id        String   @id @default(cuid())
+  name      String
+  bio       String
+  imageUrl  String
+  storeId   String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store       Store         @relation(fields: [storeId], references: [id])
+  ledgerItems PointLedger[]
+}
+
+model PointLedger {
+  id             String   @id @default(cuid())
+  type           String
+  amount         Int
+  fromUserId     String?
+  toUserId       String?
+  castId         String?
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+
+  fromUser User? @relation("LedgerFromUser", fields: [fromUserId], references: [id])
+  toUser   User? @relation("LedgerToUser", fields: [toUserId], references: [id])
+  cast     Cast? @relation(fields: [castId], references: [id])
+}
+
+model Title {
+  id        String   @id @default(cuid())
+  name      String
+  threshold Int
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
