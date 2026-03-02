@@ -32,8 +32,13 @@ export async function PUT(
     return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
   }
 
-  const cast = await prisma.cast.update({ where: { id }, data: parsed.data });
-  return NextResponse.json({ cast });
+  try {
+    const cast = await prisma.cast.update({ where: { id }, data: parsed.data });
+    return NextResponse.json({ cast });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "DB error";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 export async function DELETE(

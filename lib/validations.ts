@@ -25,6 +25,9 @@ export const CastSchema = z.object({
   imageUrl: z.string().min(1, "画像URLは必須です"),
   storeId: z.string().min(1, "店舗は必須です"),
   order: z.number().int().default(0),
+  twitterUrl: z.string().nullish(),
+  instagramUrl: z.string().nullish(),
+  tiktokUrl: z.string().nullish(),
 });
 
 export const GrantPointsSchema = z.object({

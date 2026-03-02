@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getCastRanking } from "@/lib/points";
+import { getMonthlyRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
 
 interface Props {
@@ -31,7 +31,7 @@ export default async function StorePage({ params }: Props) {
 
   if (!store) notFound();
 
-  const ranking = await getCastRanking(store.id);
+  const ranking = await getMonthlyRanking(store.id);
   const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(store.mapQuery)}&output=embed&hl=ja`;
 
   return (
@@ -98,9 +98,14 @@ export default async function StorePage({ params }: Props) {
 
           {/* 店舗別ランキング */}
           <section>
-            <h2 className="text-xl font-bold text-star-300 text-star-glow mb-4">
-              ⭐ 店舗ランキング
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-star-300 text-star-glow">
+                ⭐ 月間ランキング
+              </h2>
+              <Link href={`/ranking/${slug}`} className="text-xs text-neon-purple hover:text-neon-violet transition-colors">
+                詳細を見る →
+              </Link>
+            </div>
             {ranking.length > 0 ? (
               <div className="space-y-3">
                 {ranking.map((cast, i) => (

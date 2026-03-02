@@ -4,15 +4,15 @@ export default function ConceptSection() {
       <div className="max-w-3xl mx-auto">
         <h2 className="section-title gradient-text">CONCEPT</h2>
 
-        <div className="glass p-8 space-y-6 text-center">
+        <div data-reveal className="glass p-8 space-y-6 text-center">
           <div className="text-4xl" aria-hidden="true">🌙</div>
           <h3 className="text-xl md:text-2xl font-bold text-star-300 text-star-glow">
             星と狼が宿る、夜の物語
           </h3>
           <p className="text-white/80 leading-relaxed text-base md:text-lg">
-            「星狼」は、男装キャストが織りなすBLコンセプトカフェ。<br />
-            ネオンが輝く夜の空間で、キャスト達の世界観に包まれながら<br />
-            特別なひとときをお過ごしください。
+            「星狼」は、<span className="text-star-300 font-semibold">コスプレイヤーだけが働く</span>、男装キャストが織りなすBLコンセプトカフェ。<br />
+            本物のコスプレイヤーが贈る唯一無二の世界観を、<br />
+            ネオンが輝く夜の空間でお楽しみください。
           </p>
           <p className="text-white/60 leading-relaxed">
             "星"のように輝き、"狼"のように強く。<br />

@@ -10,6 +10,8 @@ interface Customer { id: string; email: string; emailVerified: boolean; balance:
 
 type Tab = "cast" | "points" | "titles";
 
+const CAST_EMPTY = { name: "", bio: "", imageUrl: "/images/cast-placeholder.jpg", storeId: "", order: 0, twitterUrl: "", instagramUrl: "", tiktokUrl: "" };
+
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("cast");
   const [casts, setCasts] = useState<Cast[]>([]);
@@ -21,8 +23,9 @@ export default function AdminPage() {
   const [err, setErr] = useState("");
 
   // Cast form
-  const [castForm, setCastForm] = useState({ name: "", bio: "", imageUrl: "/images/cast-placeholder.jpg", storeId: "", order: 0 });
+  const [castForm, setCastForm] = useState(CAST_EMPTY);
   const [editingCast, setEditingCast] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Grant form
   const [grantEmail, setGrantEmail] = useState("");
@@ -38,40 +41,55 @@ export default function AdminPage() {
   };
 
   const fetchAll = useCallback(async () => {
-    const [c, s, t, u] = await Promise.all([
+    const slugs = ["tokyo", "osaka", "nagoya"];
+    const [c, t, u, ...storeResults] = await Promise.all([
       fetch("/api/cast").then(r => r.json()),
-      fetch("/api/store/tokyo").then(r => r.json()).catch(() => ({ store: null })),
       fetch("/api/titles").then(r => r.json()),
       fetch("/api/admin/users").then(r => r.json()).catch(() => ({ users: [] })),
+      ...slugs.map(s => fetch(`/api/store/${s}`).then(r => r.json()).catch(() => ({ store: null }))),
     ]);
     setCasts(c.casts ?? []);
     setTitles(t.titles ?? []);
     setCustomers(u.users ?? []);
-    // storesはseed済みのため固定
-    setStores([
-      { id: "", slug: "tokyo", name: "星狼 池袋店" },
-      { id: "", slug: "osaka", name: "星狼 日本橋店" },
-      { id: "", slug: "nagoya", name: "星狼 名古屋錦店" },
-    ]);
-    void c; void s; void t;
+    setStores(storeResults.map((r, i) => ({
+      id: r.store?.id ?? "",
+      slug: slugs[i],
+      name: r.store?.name ?? slugs[i],
+    })));
   }, []);
 
-  const fetchStoreIds = useCallback(async () => {
-    const slugs = ["tokyo", "osaka", "nagoya"];
-    const results = await Promise.all(slugs.map(s => fetch(`/api/store/${s}`).then(r => r.json())));
-    setStores(results.map((r, i) => ({ id: r.store?.id ?? "", slug: slugs[i], name: r.store?.name ?? slugs[i] })));
-  }, []);
-
-  useEffect(() => { fetchAll(); fetchStoreIds(); }, [fetchAll, fetchStoreIds]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // Cast CRUD
+  const uploadImage = async (file: File) => {
+    setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    const d = await res.json();
+    if (res.ok) setCastForm(p => ({ ...p, imageUrl: d.url }));
+    else flash(d.error ?? "アップロードエラー", true);
+    setUploading(false);
+  };
+
   const saveCast = async () => {
     const url = editingCast ? `/api/cast/${editingCast}` : "/api/cast";
     const method = editingCast ? "PUT" : "POST";
     const storeId = stores.find(s => s.slug === castForm.storeId || s.id === castForm.storeId)?.id || castForm.storeId;
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...castForm, storeId }) });
-    if (res.ok) { flash("保存しました"); setCastForm({ name: "", bio: "", imageUrl: "/images/cast-placeholder.jpg", storeId: "", order: 0 }); setEditingCast(null); fetchAll(); }
-    else { const d = await res.json(); flash(d.error ?? "エラー", true); }
+    const payload = {
+      ...castForm,
+      storeId,
+      twitterUrl: castForm.twitterUrl || null,
+      instagramUrl: castForm.instagramUrl || null,
+      tiktokUrl: castForm.tiktokUrl || null,
+    };
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (res.ok) { flash("保存しました"); setCastForm(CAST_EMPTY); setEditingCast(null); fetchAll(); }
+    else {
+      let errMsg = `サーバーエラー (${res.status})`;
+      try { const text = await res.text(); if (text) errMsg = JSON.parse(text).error ?? errMsg; } catch {}
+      flash(errMsg, true);
+    }
   };
 
   const deleteCast = async (id: string) => {
@@ -80,9 +98,15 @@ export default function AdminPage() {
     fetchAll();
   };
 
-  const editCast = (cast: Cast) => {
+  const editCast = (cast: Cast & { twitterUrl?: string | null; instagramUrl?: string | null; tiktokUrl?: string | null }) => {
     const storeSlug = stores.find(s => s.name === cast.store.name)?.slug ?? "";
-    setCastForm({ name: cast.name, bio: cast.bio, imageUrl: cast.imageUrl, storeId: storeSlug, order: 0 });
+    setCastForm({
+      name: cast.name, bio: cast.bio, imageUrl: cast.imageUrl,
+      storeId: storeSlug, order: 0,
+      twitterUrl: cast.twitterUrl ?? "",
+      instagramUrl: cast.instagramUrl ?? "",
+      tiktokUrl: cast.tiktokUrl ?? "",
+    });
     setEditingCast(cast.id);
     setTab("cast");
   };
@@ -175,30 +199,62 @@ export default function AdminPage() {
                   <label className="text-xs text-white/60 block mb-1">プロフィール</label>
                   <textarea className="input-field min-h-[80px]" value={castForm.bio} onChange={e => setCastForm(p => ({ ...p, bio: e.target.value }))} placeholder="自己紹介文" />
                 </div>
-                <div>
-                  <label className="text-xs text-white/60 block mb-1">画像URL</label>
-                  <input className="input-field" value={castForm.imageUrl} onChange={e => setCastForm(p => ({ ...p, imageUrl: e.target.value }))} placeholder="/images/..." />
+                <div className="sm:col-span-2">
+                  <label className="text-xs text-white/60 block mb-1">キャスト画像</label>
+                  <div className="flex gap-3 items-start">
+                    {castForm.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={castForm.imageUrl} alt="プレビュー" className="w-16 h-20 object-cover rounded-lg border border-white/20 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <label className={`flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-dashed cursor-pointer transition-all ${uploading ? "border-white/20 text-white/30" : "border-neon-violet text-neon-violet hover:bg-neon-violet/10"}`}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span className="text-sm">{uploading ? "アップロード中..." : "画像を選択"}</span>
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); }} />
+                      </label>
+                      <input className="input-field text-xs" value={castForm.imageUrl} onChange={e => setCastForm(p => ({ ...p, imageUrl: e.target.value }))} placeholder="または画像URLを直接入力" />
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-white/60 block mb-1">表示順</label>
                   <input type="number" className="input-field" value={castForm.order} onChange={e => setCastForm(p => ({ ...p, order: Number(e.target.value) }))} />
                 </div>
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">X (Twitter) URL</label>
+                  <input className="input-field" value={castForm.twitterUrl} onChange={e => setCastForm(p => ({ ...p, twitterUrl: e.target.value }))} placeholder="https://x.com/@..." />
+                </div>
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">Instagram URL</label>
+                  <input className="input-field" value={castForm.instagramUrl} onChange={e => setCastForm(p => ({ ...p, instagramUrl: e.target.value }))} placeholder="https://instagram.com/..." />
+                </div>
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">TikTok URL</label>
+                  <input className="input-field" value={castForm.tiktokUrl} onChange={e => setCastForm(p => ({ ...p, tiktokUrl: e.target.value }))} placeholder="https://tiktok.com/@..." />
+                </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={saveCast} className="btn-primary text-sm">{editingCast ? "更新" : "追加"}</button>
-                {editingCast && <button onClick={() => { setEditingCast(null); setCastForm({ name: "", bio: "", imageUrl: "/images/cast-placeholder.jpg", storeId: "", order: 0 }); }} className="btn-secondary text-sm">キャンセル</button>}
+                <button onClick={saveCast} disabled={uploading} className="btn-primary text-sm">{editingCast ? "更新" : "追加"}</button>
+                {editingCast && <button onClick={() => { setEditingCast(null); setCastForm(CAST_EMPTY); }} className="btn-secondary text-sm">キャンセル</button>}
               </div>
             </div>
 
             <div className="space-y-2">
               {casts.map(cast => (
-                <div key={cast.id} className="glass-dark p-4 flex items-center gap-4">
-                  <div className="flex-1">
-                    <div className="font-bold text-white">{cast.name}</div>
+                <div key={cast.id} className="glass-dark p-3 flex items-center gap-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={cast.imageUrl || "/images/cast-placeholder.jpg"}
+                    alt={cast.name}
+                    className="w-12 h-14 object-cover rounded-lg flex-shrink-0 bg-white/5"
+                    onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-white truncate">{cast.name}</div>
                     <div className="text-xs text-white/40">{cast.store.name}</div>
                   </div>
-                  <button onClick={() => editCast(cast)} className="text-neon-violet text-sm hover:text-neon-purple">編集</button>
-                  <button onClick={() => deleteCast(cast.id)} className="text-neon-pink text-sm hover:text-red-400">削除</button>
+                  <button onClick={() => editCast(cast)} className="text-neon-violet text-sm hover:text-neon-purple flex-shrink-0">編集</button>
+                  <button onClick={() => deleteCast(cast.id)} className="text-neon-pink text-sm hover:text-red-400 flex-shrink-0">削除</button>
                 </div>
               ))}
             </div>

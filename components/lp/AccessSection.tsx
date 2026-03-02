@@ -29,7 +29,7 @@ export default function AccessSection() {
     <section id="sec06" className="py-20 px-4" style={{ background: "#06040f" }}>
       <h2 className="section-title gradient-text">ACCESS</h2>
 
-      <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <div data-reveal className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
         {STORES.map((store) => (
           <div key={store.slug} className="glass p-6 space-y-4">
             <div className="text-center">

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -47,23 +47,41 @@ const HeartIcon = () => (
   </svg>
 );
 
+const TrophyIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <path d="M8 21h8M12 17v4M17 4h2a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V6a2 2 0 0 1 2-2h2" />
+    <path d="M7 4h10v6a5 5 0 0 1-10 0V4z" />
+  </svg>
+);
+
 const NAV_ITEMS = [
-  { href: "#sec01", label: "CONCEPT",      Icon: StarIcon },
-  { href: "#sec02", label: "CAST",         Icon: WolfPawIcon },
-  { href: "#sec03", label: "MENU",         Icon: MoonIcon },
-  { href: "#sec04", label: "CALENDAR",     Icon: CalendarIcon },
-  { href: "#sec06", label: "ACCESS",       Icon: MapPinIcon },
-  { href: "#sec07", label: "SNS",          Icon: HeartIcon },
+  { href: "/#sec01", label: "CONCEPT",  Icon: StarIcon },
+  { href: "/#sec02", label: "CAST",     Icon: WolfPawIcon },
+  { href: "/#sec03", label: "MENU",     Icon: MoonIcon },
+  { href: "/#sec04", label: "CALENDAR", Icon: CalendarIcon },
+  { href: "/#sec06", label: "ACCESS",   Icon: MapPinIcon },
+  { href: "/#sec07", label: "SNS",      Icon: HeartIcon },
 ];
+
+interface SessionUser { id: string; role: string }
 
 export default function NavBar() {
   const [open, setOpen] = useState(false);
+  const [user, setUser] = useState<SessionUser | null | undefined>(undefined);
 
-  const handleNav = (href: string) => {
-    setOpen(false);
-    const el = document.getElementById(href.slice(1));
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setUser(d?.user ?? null))
+      .catch(() => setUser(null));
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/";
   };
+
+  const navLinkClass = "flex flex-col items-center gap-0.5 px-3 py-2 text-white/70 hover:text-neon-purple transition-colors text-xs";
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 glass-dark">
@@ -83,18 +101,36 @@ export default function NavBar() {
         {/* PC ナビ */}
         <nav className="hidden md:flex items-center gap-1" aria-label="メインナビゲーション">
           {NAV_ITEMS.map(({ href, label, Icon }) => (
-            <button
-              key={href}
-              onClick={() => handleNav(href)}
-              className="flex flex-col items-center gap-0.5 px-3 py-2 text-white/70 hover:text-neon-purple transition-colors text-xs"
-            >
+            <Link key={href} href={href} className={navLinkClass}>
               <Icon />
               <span>{label}</span>
-            </button>
+            </Link>
           ))}
-          <Link href="/auth/login" className="ml-4 btn-primary text-sm py-2 px-4">
-            ログイン
+          <Link href="/ranking" className={navLinkClass}>
+            <TrophyIcon />
+            <span>RANKING</span>
           </Link>
+
+          {/* 認証ボタン */}
+          {user === undefined ? null : user ? (
+            <div className="flex items-center gap-2 ml-4">
+              {user.role === "ADMIN" && (
+                <Link href="/admin" className="btn-secondary text-sm py-1.5 px-3">
+                  管理画面
+                </Link>
+              )}
+              <Link href="/me" className="btn-secondary text-sm py-1.5 px-3">
+                マイページ
+              </Link>
+              <button onClick={handleLogout} className="btn-primary text-sm py-1.5 px-3">
+                ログアウト
+              </button>
+            </div>
+          ) : (
+            <Link href="/auth/login" className="ml-4 btn-primary text-sm py-2 px-4">
+              ログイン
+            </Link>
+          )}
         </nav>
 
         {/* スマホ ハンバーガー */}
@@ -122,20 +158,45 @@ export default function NavBar() {
         <div className="md:hidden glass-dark border-t border-white/10 py-4">
           <div className="grid grid-cols-3 gap-2 px-4">
             {NAV_ITEMS.map(({ href, label, Icon }) => (
-              <button
+              <Link
                 key={href}
-                onClick={() => handleNav(href)}
+                href={href}
+                onClick={() => setOpen(false)}
                 className="flex flex-col items-center gap-1 py-3 text-white/70 hover:text-neon-purple transition-colors text-xs"
               >
                 <Icon />
                 <span>{label}</span>
-              </button>
+              </Link>
             ))}
-          </div>
-          <div className="px-4 mt-4">
-            <Link href="/auth/login" className="btn-primary block w-full text-center text-sm">
-              ログイン / 会員登録
+            <Link
+              href="/ranking"
+              onClick={() => setOpen(false)}
+              className="flex flex-col items-center gap-1 py-3 text-white/70 hover:text-neon-purple transition-colors text-xs"
+            >
+              <TrophyIcon />
+              <span>RANKING</span>
             </Link>
+          </div>
+          <div className="px-4 mt-4 space-y-2">
+            {user ? (
+              <>
+                {user.role === "ADMIN" && (
+                  <Link href="/admin" onClick={() => setOpen(false)} className="btn-secondary block w-full text-center text-sm">
+                    管理画面
+                  </Link>
+                )}
+                <Link href="/me" onClick={() => setOpen(false)} className="btn-secondary block w-full text-center text-sm">
+                  マイページ
+                </Link>
+                <button onClick={handleLogout} className="btn-primary block w-full text-center text-sm">
+                  ログアウト
+                </button>
+              </>
+            ) : (
+              <Link href="/auth/login" className="btn-primary block w-full text-center text-sm">
+                ログイン / 会員登録
+              </Link>
+            )}
           </div>
         </div>
       )}

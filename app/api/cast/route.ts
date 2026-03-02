@@ -23,6 +23,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
   }
 
-  const cast = await prisma.cast.create({ data: parsed.data });
-  return NextResponse.json({ cast }, { status: 201 });
+  try {
+    const cast = await prisma.cast.create({ data: parsed.data });
+    return NextResponse.json({ cast }, { status: 201 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "DB error";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

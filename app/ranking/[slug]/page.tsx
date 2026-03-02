@@ -1,22 +1,36 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { getMonthlyRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
 
 export const revalidate = 300;
 
-export const metadata: Metadata = {
-  title: "月間ランキング",
-  description:
-    "星狼の月間キャストランキング。池袋・日本橋・名古屋の全店舗を対象に、今月ポイントを最も受け取ったキャストをランキング形式で表示します。",
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+const STORE_INFO: Record<string, { city: string; keyword: string }> = {
+  tokyo:  { city: "池袋",   keyword: "男装コンカフェ 池袋" },
+  osaka:  { city: "日本橋", keyword: "男装コンカフェ 大阪 日本橋" },
+  nagoya: { city: "名古屋錦", keyword: "男装コンカフェ 名古屋" },
 };
 
-const STORES = [
-  { slug: "tokyo",  name: "池袋店" },
-  { slug: "osaka",  name: "日本橋店" },
-  { slug: "nagoya", name: "名古屋錦店" },
-];
+export async function generateStaticParams() {
+  return [{ slug: "tokyo" }, { slug: "osaka" }, { slug: "nagoya" }];
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const info = STORE_INFO[slug];
+  if (!info) return {};
+  return {
+    title: `${info.city}店 月間ランキング`,
+    description: `星狼${info.city}店の月間キャストランキング。${info.keyword}のコスプレイヤーキャストを月間ギフトポイントでランキング表示。`,
+  };
+}
 
 const RANK_BG = [
   "linear-gradient(135deg, #fbbf24, #f59e0b)",
@@ -24,12 +38,18 @@ const RANK_BG = [
   "linear-gradient(135deg, #b45309, #92400e)",
 ];
 
-export default async function RankingPage() {
+export default async function StoreRankingPage({ params }: Props) {
+  const { slug } = await params;
+  if (!STORE_INFO[slug]) notFound();
+
+  const store = await prisma.store.findUnique({ where: { slug } });
+  if (!store) notFound();
+
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
-  const ranking = await getMonthlyRanking();
+  const ranking = await getMonthlyRanking(store.id);
   const displayed = ranking.filter((c) => c.totalPoints > 0);
 
   return (
@@ -37,6 +57,7 @@ export default async function RankingPage() {
       <NavBar />
       <main className="min-h-screen pt-24 pb-16 px-4 max-w-2xl mx-auto space-y-8">
         <div className="text-center">
+          <p className="text-white/40 text-sm mb-1">{store.name}</p>
           <h1 className="text-3xl font-black gradient-text text-neon-glow">
             ⭐ 月間ランキング
           </h1>
@@ -45,23 +66,22 @@ export default async function RankingPage() {
           </p>
         </div>
 
-        {/* 店舗別ランキングへのリンク */}
-        <div className="glass p-4">
-          <p className="text-white/60 text-xs mb-3 text-center">店舗別ランキング</p>
-          <div className="flex gap-2 justify-center flex-wrap">
-            {STORES.map((s) => (
-              <Link
-                key={s.slug}
-                href={`/ranking/${s.slug}`}
-                className="glass-dark px-4 py-2 text-sm text-white/80 hover:text-neon-purple hover:border-neon-violet transition-all rounded-full"
-              >
-                {s.name} →
-              </Link>
-            ))}
-          </div>
+        {/* ナビ */}
+        <div className="flex gap-3 justify-center flex-wrap">
+          <Link
+            href="/ranking"
+            className="glass-dark px-4 py-2 text-sm text-white/70 hover:text-white hover:border-neon-violet transition-all rounded-full"
+          >
+            ← 全体ランキング
+          </Link>
+          <Link
+            href={`/store/${slug}`}
+            className="glass-dark px-4 py-2 text-sm text-white/70 hover:text-white hover:border-neon-violet transition-all rounded-full"
+          >
+            {store.name} 店舗ページ
+          </Link>
         </div>
 
-        {/* 全体ランキング */}
         {displayed.length > 0 ? (
           <div className="space-y-3">
             {displayed.map((cast, i) => (
@@ -92,7 +112,6 @@ export default async function RankingPage() {
                   <div className="font-bold text-white group-hover:text-neon-purple transition-colors truncate">
                     {cast.name}
                   </div>
-                  <div className="text-xs text-white/40">{cast.storeName}</div>
                 </div>
                 <div className="text-neon-purple font-bold whitespace-nowrap">
                   {cast.totalPoints.toLocaleString()} pt
@@ -106,10 +125,6 @@ export default async function RankingPage() {
             <p className="text-sm mt-2">ポイントをギフトするとランキングが更新されます</p>
           </div>
         )}
-
-        <div className="text-center">
-          <Link href="/" className="btn-secondary inline-block">← トップページ</Link>
-        </div>
       </main>
     </>
   );

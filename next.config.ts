@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [],
   },
   serverExternalPackages: ["better-sqlite3"],
+  devIndicators: false,
 };
 
 export default nextConfig;

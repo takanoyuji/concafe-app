@@ -20,7 +20,14 @@
       "Bash(wsl -e bash -c \"sed -i ''s/parsed\\\\.error\\\\.flatten\\(\\)/parsed.error.issues/g'' /home/takan/concafe-app/app/api/titles/route.ts /home/takan/concafe-app/app/api/titles/\\\\[id\\\\]/route.ts /home/takan/concafe-app/app/api/points/gift/route.ts /home/takan/concafe-app/app/api/points/grant/route.ts /home/takan/concafe-app/app/api/auth/reset-password/route.ts /home/takan/concafe-app/app/api/auth/signup/route.ts /home/takan/concafe-app/app/api/cast/route.ts && echo done\")",
       "Bash(wsl -e bash -c \"sed -i ''s/parsed\\\\.error\\\\.flatten\\(\\)/parsed.error.issues/g'' /home/takan/concafe-app/app/api/cast/\\\\[id\\\\]/route.ts && echo done\")",
       "Bash(wsl -e bash -c \"pkill -f ''next dev'' 2>/dev/null; pkill -f ''next-server'' 2>/dev/null; sleep 1; echo ''killed''\")",
-      "Bash(wsl -e bash -c \"fuser -k 3000/tcp 2>/dev/null; fuser -k 3001/tcp 2>/dev/null; rm -f /home/takan/concafe-app/.next/dev/lock; echo ''done''\")"
+      "Bash(wsl -e bash -c \"fuser -k 3000/tcp 2>/dev/null; fuser -k 3001/tcp 2>/dev/null; rm -f /home/takan/concafe-app/.next/dev/lock; echo ''done''\")",
+      "Bash(npx prisma migrate dev --name add_cast_sns)",
+      "Bash(wsl -d Ubuntu -e bash -c \"mkdir -p /home/takan/concafe-app/app/api/upload && mkdir -p /home/takan/concafe-app/public/images/cast\")",
+      "Bash(wsl -d Ubuntu -e bash -c \"cd /home/takan/concafe-app && npx prisma generate 2>&1\")",
+      "Bash(wsl -d Ubuntu -e bash -c \"mkdir -p /home/takan/concafe-app/app/ranking/\\\\[slug\\\\]\")",
+      "Bash(convert --version)",
+      "Bash(node -e \":*)",
+      "Bash(wsl -e bash -c \"cd ~/concafe-app && node -e \"\":*)"
     ]
   }
 }
