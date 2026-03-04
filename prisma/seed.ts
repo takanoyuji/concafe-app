@@ -8,20 +8,22 @@ const adapter = new PrismaBetterSqlite3({ url });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  // 初期ADMIN
-  const passwordHash = await bcrypt.hash("xxx123", 12);
+  // 初期ADMIN（環境変数で上書き可: ADMIN_EMAIL, ADMIN_PASSWORD）
+  const adminEmail = process.env.ADMIN_EMAIL ?? "xinglang22@gmail.com";
+  const adminPassword = process.env.ADMIN_PASSWORD ?? "xxx123";
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
   await prisma.user.upsert({
-    where: { email: "xinglang22@gmail.com" },
-    update: {},
+    where: { email: adminEmail },
+    update: { role: "ADMIN", emailVerified: true },
     create: {
-      email: "xinglang22@gmail.com",
+      email: adminEmail,
       passwordHash,
       role: "ADMIN",
       emailVerified: true,
       mustChangePassword: true,
     },
   });
-  console.log("✅ Admin user created: xinglang22@gmail.com");
+  console.log(`✅ Admin user created/updated: ${adminEmail}`);
 
   // 3店舗
   const stores = [
