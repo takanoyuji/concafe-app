@@ -26,6 +26,7 @@ export async function sendVerificationEmail(email: string, token: string) {
     return;
   }
 
+  try {
   await transport.sendMail({
     from: `星狼 <${FROM}>`,
     to: email,
@@ -39,6 +40,10 @@ export async function sendVerificationEmail(email: string, token: string) {
       </div>
     `,
   });
+  } catch (err) {
+    console.error("[EMAIL] sendVerificationEmail failed:", err);
+    throw err;
+  }
 }
 
 /** SMTP未設定時はリセットリンクを返す（画面表示用）。送信時は undefined */
@@ -51,6 +56,7 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     return { resetLink: url };
   }
 
+  try {
   await transport.sendMail({
     from: `星狼 <${FROM}>`,
     to: email,
@@ -65,4 +71,8 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     `,
   });
   return {};
+  } catch (err) {
+    console.error("[EMAIL] sendPasswordResetEmail failed:", err);
+    throw err;
+  }
 }

@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({ where: { email } });
 
     // ユーザーが存在しなくても同じレスポンスを返す（列挙攻撃対策）
+    let resetLink: string | undefined;
     if (user) {
       await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
       const token = randomBytes(32).toString("hex");
@@ -26,10 +27,14 @@ export async function POST(req: NextRequest) {
           expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1時間
         },
       });
-      await sendPasswordResetEmail(email, token);
+      const result = await sendPasswordResetEmail(email, token);
+      resetLink = result.resetLink;
     }
 
-    return NextResponse.json({ message: "パスワードリセットメールを送信しました" });
+    return NextResponse.json({
+      message: "パスワードリセットメールを送信しました",
+      ...(resetLink && { resetLink }),
+    });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "サーバーエラーが発生しました" }, { status: 500 });
