@@ -2,11 +2,15 @@
 
 サーバーの DB に初期データ（管理者ユーザー・店舗・称号など）を投入する手順です。
 
-## 1. コードを最新にしてから実行
+## 1. コードを最新にしてイメージを再ビルド
+
+**重要:** `git pull` だけではコンテナ内のコードは変わらないため、**必ず再ビルド**してください。
 
 ```bash
 cd /opt/apps/concafe-app
 git pull origin main
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ## 2. コンテナ内で seed を実行
