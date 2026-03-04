@@ -1,13 +1,14 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { logoUrl } from "@/lib/logo";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [resetLink, setResetLink] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +28,7 @@ export default function ForgotPasswordPage() {
       setError(data.error ?? "エラーが発生しました");
     } else {
       setMessage(data.message);
+      setResetLink(data.resetLink ?? null);
     }
   };
 
@@ -35,7 +37,7 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Link href="/">
-            <Image src="/images/名称未設定星狼 1.jpg" alt="星狼 ロゴ" width={120} height={60} className="object-contain mx-auto mb-4" />
+            <img src={logoUrl} alt="星狼 ロゴ" width={120} height={60} className="object-contain mx-auto mb-4 w-[120px] h-[60px]" />
           </Link>
           <h1 className="text-2xl font-black gradient-text">パスワードリセット</h1>
         </div>
@@ -44,7 +46,17 @@ export default function ForgotPasswordPage() {
           <div className="glass p-6 text-center space-y-3">
             <div className="text-2xl">📧</div>
             <p className="text-white/80">{message}</p>
-            <p className="text-white/50 text-sm">※ 開発環境ではコンソールにURLが表示されます</p>
+            {resetLink ? (
+              <>
+                <p className="text-white/70 text-sm">メール送信が未設定のため、以下のリンクからパスワードをリセットしてください。</p>
+                <a href={resetLink} className="btn-primary block text-center text-sm break-all" target="_blank" rel="noopener noreferrer">
+                  パスワードリセットページを開く
+                </a>
+                <p className="text-white/50 text-xs break-all">{resetLink}</p>
+              </>
+            ) : (
+              <p className="text-white/50 text-sm">登録メールアドレスにリセットリンクを送信しました。</p>
+            )}
             <Link href="/auth/login" className="btn-secondary block text-center text-sm">ログインへ戻る</Link>
           </div>
         ) : (

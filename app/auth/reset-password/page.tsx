@@ -2,7 +2,7 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import { logoUrl } from "@/lib/logo";
 
 function ResetForm() {
   const router = useRouter();
@@ -68,7 +68,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Link href="/">
-            <Image src="/images/名称未設定星狼 1.jpg" alt="星狼 ロゴ" width={120} height={60} className="object-contain mx-auto mb-4" />
+            <img src={logoUrl} alt="星狼 ロゴ" width={120} height={60} className="object-contain mx-auto mb-4 w-[120px] h-[60px]" />
           </Link>
           <h1 className="text-2xl font-black gradient-text">パスワード変更</h1>
         </div>

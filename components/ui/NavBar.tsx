@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { logoUrl } from "@/lib/logo";
 
 const StarIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -85,10 +86,10 @@ export default function NavBar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-40 glass-dark">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        {/* ロゴ（img で /images/logo.jpg を直接指定） */}
+        {/* ロゴ（ビルドに含まれるため確実に表示） */}
         <Link href="/" className="flex-shrink-0">
           <img
-            src="/images/logo.jpg"
+            src={logoUrl}
             alt="星狼 ロゴ"
             width={100}
             height={50}

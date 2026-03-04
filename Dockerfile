@@ -10,9 +10,10 @@ RUN npm ci
 
 COPY . .
 
-# Prisma 7: 接続URLは prisma.config.ts のみ。schema.prisma に url を書くと P1012 になる
-ENV DATABASE_URL=file:./dev.db
+# ロゴを app/assets に配置（ビルドに含め public 配信に依存しない）
+RUN mkdir -p app/assets && cp "public/images/名称未設定星狼 1.jpg" "app/assets/logo.jpg"
 
+ENV DATABASE_URL=file:./dev.db
 RUN npx prisma generate
 RUN npm run build
 
@@ -20,7 +21,7 @@ FROM node:20-slim
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y openssl gosu --no-install-recommends && \
+    apt-get install -y openssl --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
@@ -36,12 +37,9 @@ COPY --from=builder /app/prisma.config.ts ./
 
 RUN mkdir -p /data /app/public/images/cast
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# root で実行（Prisma が node_modules に書き込むため）
 CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]

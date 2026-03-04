@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { logoUrl } from "@/lib/logo";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -37,13 +37,7 @@ export default function SignupPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Link href="/">
-            <Image
-              src="/images/名称未設定星狼 1.jpg"
-              alt="星狼 ロゴ"
-              width={120}
-              height={60}
-              className="object-contain mx-auto mb-4"
-            />
+            <img src={logoUrl} alt="星狼 ロゴ" width={120} height={60} className="object-contain mx-auto mb-4 w-[120px] h-[60px]" />
           </Link>
           <h1 className="text-2xl font-black gradient-text">会員登録</h1>
           <p className="text-white/50 text-sm mt-1">星狼会員になる</p>

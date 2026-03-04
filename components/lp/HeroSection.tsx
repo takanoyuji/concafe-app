@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { logoUrl } from "@/lib/logo";
 
 export default function HeroSection() {
   return (
@@ -31,9 +32,8 @@ export default function HeroSection() {
       {/* ロゴ */}
       <div className="relative z-10 flex flex-col items-center gap-8">
         <div className="neon-glow-purple rounded-2xl p-2">
-          {/* 通常の img で静的パスを直接指定（本番で確実に表示） */}
           <img
-            src="/images/logo.jpg"
+            src={logoUrl}
             alt="星狼 ロゴ"
             width={280}
             height={140}
