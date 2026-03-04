@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
 
 const StarIcon = () => (
@@ -86,15 +85,15 @@ export default function NavBar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-40 glass-dark">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        {/* ロゴ */}
+        {/* ロゴ（img で /images/logo.jpg を直接指定） */}
         <Link href="/" className="flex-shrink-0">
-          <Image
-            src="/images/名称未設定星狼 1.jpg"
+          <img
+            src="/images/logo.jpg"
             alt="星狼 ロゴ"
             width={100}
             height={50}
             className="object-contain h-10 w-auto"
-            priority
+            fetchPriority="high"
           />
         </Link>
 
