@@ -28,8 +28,7 @@ export async function GET(req: NextRequest) {
 
   await prisma.emailVerificationToken.delete({ where: { token } });
 
-  // 認証完了ページにリダイレクト
-  return NextResponse.redirect(
-    new URL("/auth/login?verified=1", req.nextUrl.origin)
-  );
+  // 認証完了ページにリダイレクト（本番URLを優先）
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? req.nextUrl.origin;
+  return NextResponse.redirect(new URL("/auth/login?verified=1", base));
 }
