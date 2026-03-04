@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 export default function HeroSection() {
@@ -32,13 +31,14 @@ export default function HeroSection() {
       {/* ロゴ */}
       <div className="relative z-10 flex flex-col items-center gap-8">
         <div className="neon-glow-purple rounded-2xl p-2">
-          <Image
-            src="/images/名称未設定星狼 1.jpg"
+          {/* 通常の img で静的パスを直接指定（本番で確実に表示） */}
+          <img
+            src="/images/logo.jpg"
             alt="星狼 ロゴ"
             width={280}
             height={140}
-            className="object-contain"
-            priority
+            className="object-contain w-[280px] h-[140px]"
+            fetchPriority="high"
           />
         </div>
 
