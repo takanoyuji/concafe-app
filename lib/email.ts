@@ -14,7 +14,7 @@ function getTransport() {
   return null;
 }
 
-const FROM = process.env.SMTP_FROM ?? "noreply@xinglang.jp";
+const FROM = process.env.SMTP_FROM ?? "noreply@test.xing-lang.com";
 const BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
 export async function sendVerificationEmail(email: string, token: string) {
@@ -41,13 +41,14 @@ export async function sendVerificationEmail(email: string, token: string) {
   });
 }
 
-export async function sendPasswordResetEmail(email: string, token: string) {
+/** SMTP未設定時はリセットリンクを返す（画面表示用）。送信時は undefined */
+export async function sendPasswordResetEmail(email: string, token: string): Promise<{ resetLink?: string }> {
   const url = `${BASE}/auth/reset-password?token=${token}`;
   const transport = getTransport();
 
   if (!transport) {
     console.log(`\n[DEV EMAIL] パスワードリセットリンク for ${email}:\n${url}\n`);
-    return;
+    return { resetLink: url };
   }
 
   await transport.sendMail({
@@ -63,4 +64,5 @@ export async function sendPasswordResetEmail(email: string, token: string) {
       </div>
     `,
   });
+  return {};
 }
