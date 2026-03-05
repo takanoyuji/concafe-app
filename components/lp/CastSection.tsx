@@ -10,7 +10,7 @@ export default async function CastSection() {
   const stores = [
     { slug: "tokyo",  name: "池袋店" },
     { slug: "osaka",  name: "日本橋店" },
-    { slug: "nagoya", name: "名古屋錦店" },
+    { slug: "nagoya", name: "名古屋栄店" },
   ];
 
   return (

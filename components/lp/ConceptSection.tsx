@@ -23,7 +23,7 @@ export default function ConceptSection() {
             {[
               { icon: "⭐", label: "池袋店", sub: "東京" },
               { icon: "🌙", label: "日本橋店", sub: "大阪" },
-              { icon: "🐺", label: "名古屋錦店", sub: "名古屋" },
+              { icon: "🐺", label: "名古屋栄店", sub: "名古屋" },
             ].map((item) => (
               <div key={item.label} className="glass-dark p-4 rounded-xl text-center">
                 <div className="text-2xl mb-1">{item.icon}</div>

@@ -50,7 +50,7 @@ export default function HeroSection() {
             星狼
           </h1>
           <p className="text-white/70 text-base md:text-lg max-w-md mx-auto leading-relaxed">
-            池袋・日本橋・名古屋錦
+            池袋・日本橋・名古屋栄
             <br />
             男装キャストが贈る、星夜の物語
           </p>

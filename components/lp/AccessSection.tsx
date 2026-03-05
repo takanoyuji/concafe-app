@@ -17,7 +17,7 @@ const STORES = [
   },
   {
     slug: "nagoya",
-    name: "星狼 名古屋錦店",
+    name: "星狼 名古屋栄店",
     city: "名古屋",
     address: "〒460-0003 愛知県名古屋市中区錦３丁目１９−２４ サンステンドビル 4F-A",
     icon: "🐺",

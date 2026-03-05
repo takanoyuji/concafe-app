@@ -15,7 +15,7 @@ const STORE_DESC: Record<string, string> = {
   osaka:
     "日本橋でんでんタウン近く。関西唯一の星狼店舗として、大阪の夜をより一層特別に彩ります。",
   nagoya:
-    "名古屋錦の中心地に位置する星狼名古屋店。洗練された空間でキャストとの時間をお楽しみください。",
+    "名古屋栄の中心地に位置する星狼名古屋店。洗練された空間でキャストとの時間をお楽しみください。",
 };
 
 export async function generateStaticParams() {

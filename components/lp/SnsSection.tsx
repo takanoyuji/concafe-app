@@ -38,7 +38,7 @@ const STORES = [
     tiktok: "https://www.tiktok.com/@xinglang_osaka",
   },
   {
-    name: "名古屋店（錦）",
+    name: "名古屋店（栄）",
     x: "https://x.com/xinglang_nagoya",
     instagram: "https://www.instagram.com/xinglang_nagoya/",
     tiktok: "https://www.tiktok.com/@xinglang_nagoya",

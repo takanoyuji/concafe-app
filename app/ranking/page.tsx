@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 const STORES = [
   { slug: "tokyo",  name: "池袋店" },
   { slug: "osaka",  name: "日本橋店" },
-  { slug: "nagoya", name: "名古屋錦店" },
+  { slug: "nagoya", name: "名古屋栄店" },
 ];
 
 const RANK_BG = [

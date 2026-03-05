@@ -15,7 +15,7 @@ interface Props {
 const STORE_INFO: Record<string, { city: string; keyword: string }> = {
   tokyo:  { city: "池袋",   keyword: "男装コンカフェ 池袋" },
   osaka:  { city: "日本橋", keyword: "男装コンカフェ 大阪 日本橋" },
-  nagoya: { city: "名古屋錦", keyword: "男装コンカフェ 名古屋" },
+  nagoya: { city: "名古屋栄", keyword: "男装コンカフェ 名古屋" },
 };
 
 export async function generateStaticParams() {

@@ -16,7 +16,7 @@ const STORE_TABS = [
   { slug: "all",    label: "全店舗" },
   { slug: "tokyo",  label: "池袋店" },
   { slug: "osaka",  label: "日本橋店" },
-  { slug: "nagoya", label: "名古屋錦店" },
+  { slug: "nagoya", label: "名古屋栄店" },
 ];
 
 export default function CastTabs({ casts }: { casts: Cast[]; stores: Store[] }) {

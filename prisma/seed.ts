@@ -41,7 +41,7 @@ async function main() {
     },
     {
       slug: "nagoya",
-      name: "星狼 名古屋錦店",
+      name: "星狼 名古屋栄店",
       address: "〒460-0003 愛知県名古屋市中区錦３丁目１９−２４ サンステンドビル 4F-A",
       mapQuery: "愛知県名古屋市中区錦3丁目19-24 サンステンドビル",
     },
@@ -50,7 +50,7 @@ async function main() {
   for (const store of stores) {
     await prisma.store.upsert({
       where: { slug: store.slug },
-      update: {},
+      update: { name: store.name, address: store.address, mapQuery: store.mapQuery },
       create: store,
     });
   }

@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# SQLite DB（ローカル開発用。本番DBはサーバー上で管理）
+*.db
+*.db-shm
+*.db-wal

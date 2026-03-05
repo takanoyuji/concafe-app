@@ -1,6 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import NavBar from "@/components/ui/NavBar";
+
+export const dynamic = "force-dynamic";
 
 export default async function CastListPage() {
   const stores = await prisma.store.findMany({
@@ -31,8 +34,18 @@ export default async function CastListPage() {
                     href={`/cast/${cast.id}`}
                     className="glass group hover:border-neon-violet transition-all duration-300 hover:scale-[1.03] p-4 text-center"
                   >
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-violet to-neon-purple mx-auto mb-3 flex items-center justify-center text-2xl">
-                      🐺
+                    <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 bg-gradient-to-br from-neon-violet to-neon-purple flex items-center justify-center relative">
+                      {cast.imageUrl ? (
+                        <Image
+                          src={cast.imageUrl}
+                          alt={cast.name}
+                          fill
+                          sizes="64px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span className="text-2xl">🐺</span>
+                      )}
                     </div>
                     <div className="font-bold text-white text-sm group-hover:text-neon-purple transition-colors">
                       {cast.name}
