@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getMonthlyRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "月間ランキング",

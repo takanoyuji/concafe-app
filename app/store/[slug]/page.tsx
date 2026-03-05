@@ -18,6 +18,8 @@ const STORE_DESC: Record<string, string> = {
     "名古屋栄の中心地に位置する星狼名古屋店。洗練された空間でキャストとの時間をお楽しみください。",
 };
 
+export const dynamic = "force-dynamic";
+
 export async function generateStaticParams() {
   return [{ slug: "tokyo" }, { slug: "osaka" }, { slug: "nagoya" }];
 }

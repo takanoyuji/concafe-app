@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getMonthlyRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ slug: string }>;

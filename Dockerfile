@@ -15,6 +15,7 @@ RUN mkdir -p app/assets && cp "public/images/名称未設定星狼 1.jpg" "app/a
 
 ENV DATABASE_URL=file:./dev.db
 RUN npx prisma generate
+RUN npx prisma migrate deploy
 RUN npm run build
 
 FROM node:20-slim
@@ -42,4 +43,4 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 # root で実行（Prisma が node_modules に書き込むため）
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts && npm start"]

@@ -1,5 +1,7 @@
 import NavBar from "@/components/ui/NavBar";
 import HeroSection from "@/components/lp/HeroSection";
+
+export const dynamic = "force-dynamic";
 import ConceptSection from "@/components/lp/ConceptSection";
 import CastSection from "@/components/lp/CastSection";
 import MenuSection from "@/components/lp/MenuSection";
