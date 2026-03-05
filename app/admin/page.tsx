@@ -10,7 +10,7 @@ interface Customer { id: string; email: string; emailVerified: boolean; balance:
 
 type Tab = "cast" | "points" | "titles";
 
-const CAST_EMPTY = { name: "", bio: "", imageUrl: "/images/cast-placeholder.jpg", storeId: "", order: 0, twitterUrl: "", instagramUrl: "", tiktokUrl: "" };
+const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, twitterUrl: "", instagramUrl: "", tiktokUrl: "" };
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("cast");
@@ -73,6 +73,11 @@ export default function AdminPage() {
   };
 
   const saveCast = async () => {
+    if (!castForm.name.trim()) { flash("キャスト名は必須です", true); return; }
+    if (!castForm.storeId) { flash("所属店舗を選択してください", true); return; }
+    if (!castForm.bio.trim()) { flash("一言は必須です", true); return; }
+    if (!castForm.imageUrl) { flash("キャスト画像をアップロードしてください", true); return; }
+
     const url = editingCast ? `/api/cast/${editingCast}` : "/api/cast";
     const method = editingCast ? "PUT" : "POST";
     const storeId = stores.find(s => s.slug === castForm.storeId || s.id === castForm.storeId)?.id || castForm.storeId;
@@ -185,22 +190,22 @@ export default function AdminPage() {
               <h2 className="font-bold text-star-300">{editingCast ? "キャスト編集" : "キャスト追加"}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-white/60 block mb-1">名前</label>
+                  <label className="text-xs text-white/60 block mb-1">名前 <span className="text-neon-pink">*</span></label>
                   <input className="input-field" value={castForm.name} onChange={e => setCastForm(p => ({ ...p, name: e.target.value }))} placeholder="キャスト名" />
                 </div>
                 <div>
-                  <label className="text-xs text-white/60 block mb-1">所属店舗</label>
+                  <label className="text-xs text-white/60 block mb-1">所属店舗 <span className="text-neon-pink">*</span></label>
                   <select className="input-field" value={castForm.storeId} onChange={e => setCastForm(p => ({ ...p, storeId: e.target.value }))}>
                     <option value="">選択してください</option>
                     {stores.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)}
                   </select>
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="text-xs text-white/60 block mb-1">プロフィール</label>
-                  <textarea className="input-field min-h-[80px]" value={castForm.bio} onChange={e => setCastForm(p => ({ ...p, bio: e.target.value }))} placeholder="自己紹介文" />
+                  <label className="text-xs text-white/60 block mb-1">一言 <span className="text-neon-pink">*</span></label>
+                  <textarea className="input-field min-h-[80px]" value={castForm.bio} onChange={e => setCastForm(p => ({ ...p, bio: e.target.value }))} placeholder="一言を入力（例：みんなを笑顔にします！）" />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="text-xs text-white/60 block mb-1">キャスト画像</label>
+                  <label className="text-xs text-white/60 block mb-1">キャスト画像 <span className="text-neon-pink">*</span></label>
                   <div className="flex gap-3 items-start">
                     {castForm.imageUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -243,12 +248,17 @@ export default function AdminPage() {
               {casts.map(cast => (
                 <div key={cast.id} className="glass-dark p-3 flex items-center gap-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={cast.imageUrl || "/images/cast-placeholder.jpg"}
-                    alt={cast.name}
-                    className="w-12 h-14 object-cover rounded-lg flex-shrink-0 bg-white/5"
-                    onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                  />
+                  {cast.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={cast.imageUrl}
+                      alt={cast.name}
+                      className="w-12 h-14 object-cover rounded-lg flex-shrink-0 bg-white/5"
+                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <div className="w-12 h-14 rounded-lg flex-shrink-0 bg-gradient-to-br from-neon-violet to-neon-purple flex items-center justify-center text-xl">🐺</div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-white truncate">{cast.name}</div>
                     <div className="text-xs text-white/40">{cast.store.name}</div>

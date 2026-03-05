@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  const dir = path.join(process.cwd(), "public", "images", "cast");
+  const dir = "/data/cast";
   await mkdir(dir, { recursive: true });
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
@@ -36,5 +36,5 @@ export async function POST(req: NextRequest) {
   const filepath = path.join(dir, filename);
   await writeFile(filepath, buffer);
 
-  return NextResponse.json({ url: `/images/cast/${filename}` });
+  return NextResponse.json({ url: `/api/cast-image/${filename}` });
 }

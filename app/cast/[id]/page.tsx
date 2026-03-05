@@ -37,15 +37,19 @@ export default async function CastDetailPage({ params }: Props) {
       <main className="min-h-screen pt-24 pb-16 px-4 max-w-2xl mx-auto">
         <div className="glass p-8 space-y-6">
           {/* キャスト画像 */}
-          <div className="relative w-48 h-64 mx-auto rounded-2xl overflow-hidden neon-glow-purple">
-            <Image
-              src={cast.imageUrl || "/images/cast-placeholder.jpg"}
-              alt={cast.name}
-              fill
-              sizes="192px"
-              className="object-cover"
-              priority
-            />
+          <div className="relative w-48 h-64 mx-auto rounded-2xl overflow-hidden neon-glow-purple bg-gradient-to-br from-neon-violet to-neon-purple flex items-center justify-center">
+            {cast.imageUrl ? (
+              <Image
+                src={cast.imageUrl}
+                alt={cast.name}
+                fill
+                sizes="192px"
+                className="object-cover"
+                priority
+              />
+            ) : (
+              <span className="text-7xl">🐺</span>
+            )}
           </div>
 
           <div className="text-center space-y-3">
