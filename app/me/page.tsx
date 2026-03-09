@@ -5,9 +5,17 @@ import { prisma } from "@/lib/prisma";
 import { getUserBalance, getUserTitle } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
 
+export const dynamic = "force-dynamic";
+
+function fmtDate(d: Date) {
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 export default async function MePage() {
   const session = await getSession();
   if (!session) redirect("/auth/login");
+
+  const isAdmin = session.role === "ADMIN";
 
   const [user, balance, titleInfo] = await Promise.all([
     prisma.user.findUnique({
@@ -20,7 +28,7 @@ export default async function MePage() {
 
   if (!user) redirect("/auth/login");
 
-  // 最近のGIFT履歴
+  // 最近のGIFT履歴（一般ユーザー用）
   const recentGifts = await prisma.pointLedger.findMany({
     where: { fromUserId: session.userId, type: "GIFT" },
     include: { cast: { select: { name: true } } },
@@ -28,17 +36,57 @@ export default async function MePage() {
     take: 5,
   });
 
+  // 管理者専用データ
+  let allGifts: Array<{
+    id: string;
+    amount: number;
+    createdAt: Date;
+    fromUser: { email: string } | null;
+    cast: { name: string; store: { name: string } } | null;
+  }> = [];
+  let customers: Array<{
+    id: string;
+    email: string;
+    emailVerified: boolean;
+    createdAt: Date;
+    balance: number;
+  }> = [];
+
+  if (isAdmin) {
+    const [giftsRaw, usersRaw] = await Promise.all([
+      prisma.pointLedger.findMany({
+        where: { type: "GIFT" },
+        include: {
+          fromUser: { select: { email: true } },
+          cast: { select: { name: true, store: { select: { name: true } } } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+      prisma.user.findMany({
+        where: { role: "CUSTOMER" },
+        select: { id: true, email: true, emailVerified: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    allGifts = giftsRaw;
+    customers = await Promise.all(
+      usersRaw.map(async (u) => ({
+        ...u,
+        balance: await getUserBalance(u.id),
+      }))
+    );
+  }
+
   const progressPct = titleInfo.next
-    ? Math.min(
-        100,
-        Math.round((titleInfo.cumulativeTotal / titleInfo.next.threshold) * 100)
-      )
+    ? Math.min(100, Math.round((titleInfo.cumulativeTotal / titleInfo.next.threshold) * 100))
     : 100;
 
   return (
     <>
       <NavBar />
-      <main className="min-h-screen pt-24 pb-16 px-4 max-w-2xl mx-auto space-y-6">
+      <main className="min-h-screen pt-24 pb-16 px-4 max-w-3xl mx-auto space-y-6">
         <h1 className="text-3xl font-black gradient-text text-neon-glow text-center">
           マイページ
         </h1>
@@ -83,45 +131,133 @@ export default async function MePage() {
               <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${progressPct}%`,
-                    background: "linear-gradient(90deg, #7c3aed, #c026d3)",
-                  }}
+                  style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, #7c3aed, #c026d3)" }}
                 />
               </div>
             </div>
           )}
         </div>
 
-        {/* ギフト履歴 */}
-        {recentGifts.length > 0 && (
+        {/* ギフト履歴（一般ユーザー） */}
+        {!isAdmin && recentGifts.length > 0 && (
           <div className="glass p-6 space-y-3">
             <h2 className="text-lg font-bold text-star-300">🎁 最近のギフト履歴</h2>
             <div className="space-y-2">
               {recentGifts.map((g) => (
-                <div
-                  key={g.id}
-                  className="flex justify-between items-center text-sm border-b border-white/10 pb-2"
-                >
-                  <span className="text-white/70">
-                    {g.cast?.name ?? "不明"} へギフト
-                  </span>
-                  <span className="text-neon-purple font-bold">
-                    -{g.amount.toLocaleString()} pt
-                  </span>
+                <div key={g.id} className="flex justify-between items-center text-sm border-b border-white/10 pb-2">
+                  <span className="text-white/70">{g.cast?.name ?? "不明"} へギフト</span>
+                  <span className="text-neon-purple font-bold">-{g.amount.toLocaleString()} pt</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
+        {/* ====== 管理者専用セクション ====== */}
+        {isAdmin && (
+          <>
+            {/* ギフト全履歴 */}
+            <div className="glass p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-star-300">🎁 ギフト履歴（全員）</h2>
+                <span className="text-xs text-white/40">最新200件</span>
+              </div>
+              {allGifts.length === 0 ? (
+                <p className="text-white/40 text-sm text-center py-4">ギフト履歴がありません</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[480px]">
+                    <thead>
+                      <tr className="text-white/40 text-xs border-b border-white/10">
+                        <th className="text-left py-2 pr-3 font-medium">日時</th>
+                        <th className="text-left py-2 pr-3 font-medium">会員メール</th>
+                        <th className="text-left py-2 pr-3 font-medium">キャスト</th>
+                        <th className="text-right py-2 font-medium">pt</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allGifts.map((g) => (
+                        <tr key={g.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-2 pr-3 text-white/50 text-xs whitespace-nowrap">
+                            {fmtDate(new Date(g.createdAt))}
+                          </td>
+                          <td className="py-2 pr-3 text-white/80 text-xs truncate max-w-[160px]">
+                            {g.fromUser?.email ?? "—"}
+                          </td>
+                          <td className="py-2 pr-3 text-white/80 text-xs">
+                            {g.cast ? (
+                              <span>
+                                {g.cast.name}
+                                <span className="text-white/40 ml-1">({g.cast.store.name})</span>
+                              </span>
+                            ) : "—"}
+                          </td>
+                          <td className="py-2 text-neon-purple font-bold text-right whitespace-nowrap">
+                            {g.amount.toLocaleString()} pt
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 顧客一覧 */}
+            <div className="glass p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-star-300">👥 顧客一覧</h2>
+                <span className="text-xs text-white/40">{customers.length}名</span>
+              </div>
+              {customers.length === 0 ? (
+                <p className="text-white/40 text-sm text-center py-4">顧客がいません</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[480px]">
+                    <thead>
+                      <tr className="text-white/40 text-xs border-b border-white/10">
+                        <th className="text-left py-2 pr-3 font-medium">メールアドレス</th>
+                        <th className="text-right py-2 pr-3 font-medium">残高</th>
+                        <th className="text-center py-2 pr-3 font-medium">認証</th>
+                        <th className="text-left py-2 font-medium">登録日</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customers.map((c) => (
+                        <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-2 pr-3 text-white/80 text-xs truncate max-w-[200px]">
+                            {c.email}
+                          </td>
+                          <td className="py-2 pr-3 text-star-300 font-bold text-right whitespace-nowrap">
+                            {c.balance.toLocaleString()} pt
+                          </td>
+                          <td className="py-2 pr-3 text-center">
+                            {c.emailVerified ? (
+                              <span className="text-green-400 text-xs">✓</span>
+                            ) : (
+                              <span className="text-yellow-500 text-xs">未</span>
+                            )}
+                          </td>
+                          <td className="py-2 text-white/40 text-xs whitespace-nowrap">
+                            {new Date(c.createdAt).toLocaleDateString("ja-JP")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
         <div className="flex gap-4 justify-center">
           <Link href="/ranking" className="btn-secondary text-sm">ランキングを見る</Link>
+          {isAdmin && (
+            <Link href="/admin" className="btn-secondary text-sm">⚙️ 管理画面</Link>
+          )}
           <form action="/api/auth/logout" method="POST">
-            <button
-              type="submit"
-              className="text-white/40 hover:text-white/70 text-sm transition-colors"
-            >
+            <button type="submit" className="text-white/40 hover:text-white/70 text-sm transition-colors">
               ログアウト
             </button>
           </form>
