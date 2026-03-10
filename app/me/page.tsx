@@ -103,10 +103,13 @@ export default async function MePage() {
 
         {/* ポイント残高 */}
         <div className="glass p-6 text-center">
-          <p className="text-white/50 text-sm mb-1">保有ポイント</p>
+          <p className="text-white/50 text-sm mb-1">保有ポイント（今月分）</p>
           <p className="text-5xl font-black text-star-300 text-star-glow">
             {balance.toLocaleString()}
             <span className="text-xl font-normal text-white/50 ml-1">pt</span>
+          </p>
+          <p className="text-white/30 text-xs mt-2">
+            有効期限: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString("ja-JP")} まで
           </p>
           <Link href="/gift" className="btn-primary inline-block mt-4 text-sm">
             🎁 キャストにプレゼント

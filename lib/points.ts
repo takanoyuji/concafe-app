@@ -1,13 +1,17 @@
 import { prisma } from "@/lib/prisma";
 
 export async function getUserBalance(userId: string): Promise<number> {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
   const [granted, gifted] = await Promise.all([
     prisma.pointLedger.aggregate({
-      where: { type: "GRANT", toUserId: userId },
+      where: { type: "GRANT", toUserId: userId, createdAt: { gte: startOfMonth, lt: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.pointLedger.aggregate({
-      where: { type: "GIFT", fromUserId: userId },
+      where: { type: "GIFT", fromUserId: userId, createdAt: { gte: startOfMonth, lt: endOfMonth } },
       _sum: { amount: true },
     }),
   ]);

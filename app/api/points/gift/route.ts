@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = GiftPointsSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    const msg = parsed.error.issues.map((i) => i.message).join("、");
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 
   const { castId, amount, idempotencyKey } = parsed.data;
