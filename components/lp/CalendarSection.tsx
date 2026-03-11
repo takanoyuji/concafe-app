@@ -6,28 +6,10 @@ export default function CalendarSection() {
       <div data-reveal className="glass max-w-2xl mx-auto p-8 text-center space-y-6">
         <div className="text-4xl" aria-hidden="true">📅</div>
         <p className="text-white/70 leading-relaxed">
-          各店舗の出勤スケジュールはSNSにて随時更新中です。
+          各店舗の出勤スケジュールは<a href="#sec07" className="text-pink-400 hover:text-pink-300 underline underline-offset-2">SNS</a>にて随時更新中です。
           <br />
-          詳細は公式X（Twitter）または Instagram をご確認ください。
+          詳細はInstagram をご確認ください。
         </p>
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <a
-            href="https://twitter.com/xinglang_cafe"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-primary text-sm"
-          >
-            公式X（Twitter）
-          </a>
-          <a
-            href="https://instagram.com/xinglang_cafe"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary text-sm"
-          >
-            Instagram
-          </a>
-        </div>
       </div>
     </section>
   );
