@@ -1,6 +1,10 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        # .env の NEXT_PUBLIC_GA_ID をビルド時に渡す（未設定ならGAは読み込まない）
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-}
     ports:
       - "3000:3000"
     volumes:

@@ -1,0 +1,15 @@
+# 手元でビルドしたイメージを pull または load して使う用（サーバーでビルドしない）
+# 使い方: docker compose -f docker-compose.pull.yml pull && docker compose -f docker-compose.pull.yml up -d
+# save/load の場合は .env に DOCKER_IMAGE=concafe-app-app:latest を入れてから up
+services:
+  app:
+    image: ${DOCKER_IMAGE:-concafe-app-app:latest}
+    ports:
+      - "3000:3000"
+    volumes:
+      - app_data:/data
+    env_file: .env
+    restart: unless-stopped
+
+volumes:
+  app_data:
