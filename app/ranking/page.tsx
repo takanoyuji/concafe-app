@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getMonthlyRanking, getCastRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
+import CastLink from "@/components/CastLink";
 
 export const dynamic = "force-dynamic";
 
@@ -148,9 +149,10 @@ export default async function RankingPage({ searchParams }: Props) {
         {displayed.length > 0 ? (
           <div className="space-y-3">
             {displayed.map((cast, i) => (
-              <Link
+              <CastLink
                 key={cast.id}
                 href={`/cast/${cast.id}`}
+                castName={cast.name}
                 className="glass-dark flex items-center gap-4 p-4 hover:border-neon-violet transition-all group"
               >
                 <div
@@ -184,7 +186,7 @@ export default async function RankingPage({ searchParams }: Props) {
                 <div className="text-neon-purple font-bold whitespace-nowrap">
                   {cast.totalPoints.toLocaleString()} pt
                 </div>
-              </Link>
+              </CastLink>
             ))}
           </div>
         ) : (

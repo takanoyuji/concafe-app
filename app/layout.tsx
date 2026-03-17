@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ScrollInit from "@/components/ui/ScrollInit";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 export const metadata: Metadata = {
   title: {
@@ -52,6 +53,7 @@ export default function RootLayout({
       <body className="antialiased">
         {children}
         <ScrollInit />
+        <GoogleAnalytics />
       </body>
     </html>
   );

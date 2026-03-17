@@ -1,3 +1,7 @@
+"use client";
+
+import { trackLineClick, trackSnsClick } from "@/lib/analytics";
+
 const XIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -56,6 +60,7 @@ export default function SnsSection() {
           href="https://line.me/R/ti/p/@xinglang"
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => trackLineClick("公式")}
           className="glass flex items-center justify-center gap-3 p-5 hover:border-neon-violet transition-all duration-300 hover:scale-105"
         >
           <span className="text-[#06C755]">
@@ -78,6 +83,7 @@ export default function SnsSection() {
                 href={store.x}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackSnsClick("x", store.name)}
                 className="glass-dark flex-1 max-w-[120px] flex flex-col items-center gap-2 py-4 hover:border-neon-violet transition-all duration-300 hover:scale-105"
               >
                 <span className="text-white"><XIcon /></span>
@@ -87,6 +93,7 @@ export default function SnsSection() {
                 href={store.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackSnsClick("instagram", store.name)}
                 className="glass-dark flex-1 max-w-[120px] flex flex-col items-center gap-2 py-4 hover:border-neon-violet transition-all duration-300 hover:scale-105"
               >
                 <span className="text-neon-pink"><InstagramIcon /></span>
@@ -96,6 +103,7 @@ export default function SnsSection() {
                 href={store.tiktok}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackSnsClick("tiktok", store.name)}
                 className="glass-dark flex-1 max-w-[120px] flex flex-col items-center gap-2 py-4 hover:border-neon-violet transition-all duration-300 hover:scale-105"
               >
                 <span className="text-white"><TikTokIcon /></span>
@@ -111,6 +119,7 @@ export default function SnsSection() {
             href="https://www.tiktok.com/@xinglang_grp"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackSnsClick("tiktok", "星狼グループ公式")}
             className="inline-flex items-center gap-2 glass px-6 py-3 hover:border-neon-violet transition-all duration-300 hover:scale-105"
           >
             <TikTokIcon />

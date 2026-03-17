@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import CastLink from "@/components/CastLink";
+import MapLink from "@/components/MapLink";
 import { getMonthlyRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
 
@@ -65,6 +67,13 @@ export default async function StorePage({ params }: Props) {
             referrerPolicy="no-referrer-when-downgrade"
             title={`${store.name}の地図`}
           />
+          <MapLink
+            href={`https://maps.google.com/maps?q=${encodeURIComponent(store.mapQuery)}`}
+            locationName={store.name}
+            className="block text-center py-2 text-sm text-neon-purple hover:text-neon-violet transition-colors bg-white/5"
+          >
+            地図をGoogleマップで開く →
+          </MapLink>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
@@ -76,9 +85,10 @@ export default async function StorePage({ params }: Props) {
             {store.casts.length > 0 ? (
               <div className="space-y-3">
                 {store.casts.map((cast) => (
-                  <Link
+                  <CastLink
                     key={cast.id}
                     href={`/cast/${cast.id}`}
+                    castName={cast.name}
                     className="glass-dark flex items-center gap-4 p-4 hover:border-neon-violet transition-all"
                   >
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-neon-violet to-neon-purple flex items-center justify-center text-xl flex-shrink-0">
@@ -88,7 +98,7 @@ export default async function StorePage({ params }: Props) {
                       <div className="font-bold text-white">{cast.name}</div>
                       <div className="text-xs text-white/50 line-clamp-1">{cast.bio}</div>
                     </div>
-                  </Link>
+                  </CastLink>
                 ))}
               </div>
             ) : (
@@ -111,9 +121,10 @@ export default async function StorePage({ params }: Props) {
             {ranking.length > 0 ? (
               <div className="space-y-3">
                 {ranking.map((cast, i) => (
-                  <Link
+                  <CastLink
                     key={cast.id}
                     href={`/cast/${cast.id}`}
+                    castName={cast.name}
                     className="glass-dark flex items-center gap-4 p-4 hover:border-neon-violet transition-all"
                   >
                     <div
@@ -138,7 +149,7 @@ export default async function StorePage({ params }: Props) {
                     <div className="text-neon-purple font-bold text-sm">
                       {cast.totalPoints.toLocaleString()} pt
                     </div>
-                  </Link>
+                  </CastLink>
                 ))}
               </div>
             ) : (

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import NavBar from "@/components/ui/NavBar";
+import SnsLink from "@/components/SnsLink";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -66,34 +67,34 @@ export default async function CastDetailPage({ params }: Props) {
             {(cast.twitterUrl || cast.instagramUrl || cast.tiktokUrl) && (
               <div className="flex gap-2 justify-center flex-wrap pt-1">
                 {cast.twitterUrl && (
-                  <a
+                  <SnsLink
                     href={cast.twitterUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    snsType="x"
+                    locationName={cast.store.name}
                     className="glass-dark px-3 py-1.5 rounded-full text-xs text-white/70 hover:text-white hover:border-neon-violet transition-all"
                   >
                     𝕏 / Twitter
-                  </a>
+                  </SnsLink>
                 )}
                 {cast.instagramUrl && (
-                  <a
+                  <SnsLink
                     href={cast.instagramUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    snsType="instagram"
+                    locationName={cast.store.name}
                     className="glass-dark px-3 py-1.5 rounded-full text-xs text-white/70 hover:text-white hover:border-neon-violet transition-all"
                   >
                     Instagram
-                  </a>
+                  </SnsLink>
                 )}
                 {cast.tiktokUrl && (
-                  <a
+                  <SnsLink
                     href={cast.tiktokUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    snsType="tiktok"
+                    locationName={cast.store.name}
                     className="glass-dark px-3 py-1.5 rounded-full text-xs text-white/70 hover:text-white hover:border-neon-violet transition-all"
                   >
                     TikTok
-                  </a>
+                  </SnsLink>
                 )}
               </div>
             )}

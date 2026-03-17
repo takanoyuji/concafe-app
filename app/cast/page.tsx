@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import NavBar from "@/components/ui/NavBar";
+import CastLink from "@/components/CastLink";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +30,10 @@ export default async function CastListPage() {
             {store.casts.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {store.casts.map((cast) => (
-                  <Link
+                  <CastLink
                     key={cast.id}
                     href={`/cast/${cast.id}`}
+                    castName={cast.name}
                     className="glass group hover:border-neon-violet transition-all duration-300 hover:scale-[1.03] p-4 text-center"
                   >
                     <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 bg-gradient-to-br from-neon-violet to-neon-purple flex items-center justify-center relative">
@@ -51,7 +53,7 @@ export default async function CastListPage() {
                       {cast.name}
                     </div>
                     <div className="text-xs text-white/40 mt-1 line-clamp-2">{cast.bio}</div>
-                  </Link>
+                  </CastLink>
                 ))}
               </div>
             ) : (

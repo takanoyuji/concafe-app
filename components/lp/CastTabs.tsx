@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import CastLink from "@/components/CastLink";
 
 type Cast = {
   id: string;
@@ -48,9 +49,10 @@ export default function CastTabs({ casts }: { casts: Cast[]; stores: Store[] }) 
       {filtered.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
           {filtered.map((cast) => (
-            <Link
+            <CastLink
               key={cast.id}
               href={`/cast/${cast.id}`}
+              castName={cast.name}
               className="glass group hover:border-neon-violet transition-all duration-300 hover:scale-[1.03] overflow-hidden block"
             >
               <div className="relative aspect-[3/4] bg-night-900">
@@ -69,7 +71,7 @@ export default function CastTabs({ casts }: { casts: Cast[]; stores: Store[] }) 
                   <div className="text-xs text-white/50 mt-0.5">{cast.store.name}</div>
                 </div>
               </div>
-            </Link>
+            </CastLink>
           ))}
         </div>
       ) : (
