@@ -1,5 +1,44 @@
 # サーバーへデプロイしてメール送信を有効にする
 
+## 今すぐやる手順（ローカルで Docker 起動 → サーバに反映）
+
+サーバー上でビルドすると時間がかかるため、**ローカルで Docker を立ち上げてから**イメージをサーバに渡します。
+
+### ローカル（手元 PC）
+
+```bash
+cd /home/takan/concafe-app   # またはプロジェクトのパス
+
+# 1) ローカルでビルド・起動して動作確認（任意だが推奨）
+docker compose up --build -d
+# → http://localhost:3000 で確認後
+docker compose down
+
+# 2) イメージをビルドしてレジストリに push（方法B の場合）
+# 事前: .env に NEXT_PUBLIC_GA_ID を入れておく。docker login 済みであること。
+chmod +x scripts/build-and-push.sh
+./scripts/build-and-push.sh
+```
+
+- **Docker Hub を使わない場合**（save/load）は、下記「方法A」の `scripts/build-and-save.sh` を使い、生成された `concafe-app.tar` をサーバに `scp` してください。
+
+### サーバー
+
+```bash
+ssh ubuntu@219.94.244.166
+cd /opt/apps/concafe-app
+git pull origin main
+
+# 初回のみ .env にイメージ名を追加（方法B の場合）
+grep -q '^DOCKER_IMAGE=' .env || echo 'DOCKER_IMAGE=takanoyuji/concafe-app:latest' >> .env
+
+docker compose down
+docker compose -f docker-compose.pull.yml pull
+docker compose -f docker-compose.pull.yml up -d --force-recreate
+```
+
+---
+
 ## 1. ローカルでコードを GitHub にプッシュ
 
 ```bash
@@ -51,6 +90,34 @@ SMTP_USER=（SESのSMTPユーザー名）
 SMTP_PASS=（SESのSMTPパスワード）
 SMTP_FROM=noreply@test.xing-lang.com
 NEXT_PUBLIC_BASE_URL=https://test.xing-lang.com
+```
+
+## 3.2 キャストデータの永続化とバックアップ
+
+**なぜ消えたか:** 以前は DB がコンテナ内（`/app`）にあり、`docker compose up -d --force-recreate` でコンテナを作り直すとコンテナごと消えていました。現在は **DB を永続ボリューム `/data` に保存**するようにしてあり、イメージの差し替えやコンテナの再作成では消えません。
+
+- **DB ファイル**: イメージのデフォルトで `file:/data/concafe.db`。ボリューム `app_data` が `/data` にマウントされているため、コンテナを消してもデータは残ります。
+- **キャスト画像**: `/data/cast` にアップロードされた画像も同じボリューム内にあります。
+
+**今後のデプロイ前にバックアップしたい場合（推奨）:**
+
+```bash
+# サーバーで実行
+cd /opt/apps/concafe-app
+# DB のみバックアップ（簡単）
+docker compose -f docker-compose.pull.yml exec app cat /data/concafe.db > backup_$(date +%Y%m%d).db
+# ボリューム名が不明な場合は docker volume ls で concafe-app_app_data などを確認
+# ボリューム全体を tar で取得（キャスト画像も含む）
+docker run --rm -v concafe-app_app_data:/data -v $(pwd):/backup alpine tar czf /backup/app_data_backup_$(date +%Y%m%d).tar.gz -C /data .
+```
+
+バックアップから DB だけ復元する例:
+
+```bash
+# コンテナを止めてから
+docker compose -f docker-compose.pull.yml down
+docker run --rm -v concafe-app_app_data:/data -v $(pwd):/backup alpine sh -c "cp /backup/backup_YYYYMMDD.db /data/concafe.db"
+docker compose -f docker-compose.pull.yml up -d
 ```
 
 ## 4. ビルドが遅い場合（40分以上かかる場合）

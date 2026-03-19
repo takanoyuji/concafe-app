@@ -1,34 +1,46 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-function getTransport() {
-  if (process.env.SMTP_HOST) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 587),
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  }
-  return null;
-}
-
-const FROM = process.env.SMTP_FROM ?? "noreply@test.xing-lang.com";
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM = process.env.MAIL_FROM ?? "星狼 <info@mail.xing-lang.com>";
 const BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+
+/** 共通メール送信関数 */
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+}) {
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to,
+    subject,
+    html,
+    ...(text ? { text } : {}),
+  });
+
+  if (error) {
+    console.error("[EMAIL] 送信失敗:", { to, subject, error });
+    throw new Error(`メール送信に失敗しました: ${error.message}`);
+  }
+
+  console.log("[EMAIL] 送信成功 message_id:", data?.id, "to:", to);
+}
 
 export async function sendVerificationEmail(email: string, token: string) {
   const url = `${BASE}/api/auth/verify-email?token=${token}`;
-  const transport = getTransport();
 
-  if (!transport) {
+  if (!process.env.RESEND_API_KEY) {
     console.log(`\n[DEV EMAIL] メール認証リンク for ${email}:\n${url}\n`);
     return;
   }
 
-  try {
-  await transport.sendMail({
-    from: `星狼 <${FROM}>`,
+  await sendEmail({
     to: email,
     subject: "【星狼】メールアドレスの確認",
     html: `
@@ -40,25 +52,21 @@ export async function sendVerificationEmail(email: string, token: string) {
       </div>
     `,
   });
-  } catch (err) {
-    console.error("[EMAIL] sendVerificationEmail failed:", err);
-    throw err;
-  }
 }
 
-/** SMTP未設定時はリセットリンクを返す（画面表示用）。送信時は undefined */
-export async function sendPasswordResetEmail(email: string, token: string): Promise<{ resetLink?: string }> {
+/** Resend未設定時はリセットリンクを返す（画面表示用）。送信時は undefined */
+export async function sendPasswordResetEmail(
+  email: string,
+  token: string
+): Promise<{ resetLink?: string }> {
   const url = `${BASE}/auth/reset-password?token=${token}`;
-  const transport = getTransport();
 
-  if (!transport) {
+  if (!process.env.RESEND_API_KEY) {
     console.log(`\n[DEV EMAIL] パスワードリセットリンク for ${email}:\n${url}\n`);
     return { resetLink: url };
   }
 
-  try {
-  await transport.sendMail({
-    from: `星狼 <${FROM}>`,
+  await sendEmail({
     to: email,
     subject: "【星狼】パスワードリセット",
     html: `
@@ -70,9 +78,6 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
       </div>
     `,
   });
+
   return {};
-  } catch (err) {
-    console.error("[EMAIL] sendPasswordResetEmail failed:", err);
-    throw err;
-  }
 }

@@ -6,7 +6,11 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# ネットワーク不安定時用: リトライ・タイムアウト延長
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm ci
 
 COPY . .
 
@@ -48,6 +52,8 @@ RUN mkdir -p /data /app/public/images/cast
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+# 本番: DB を永続ボリューム /data に置く（.env で上書き可）
+ENV DATABASE_URL=file:/data/concafe.db
 
 # root で実行（Prisma が node_modules に書き込むため）
 CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts && npm start"]
