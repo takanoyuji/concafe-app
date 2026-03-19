@@ -71,7 +71,11 @@ export default function NavBar() {
 
   useEffect(() => {
     fetch("/api/auth/me")
-      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        if (r.status === 401) return null; // 未ログインは正常。エラーとして扱わない
+        if (!r.ok) return null;
+        return r.json();
+      })
       .then(d => setUser(d?.user ?? null))
       .catch(() => setUser(null));
   }, []);

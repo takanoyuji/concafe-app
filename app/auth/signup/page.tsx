@@ -8,6 +8,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [emailSent, setEmailSent] = useState(true);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -17,7 +18,7 @@ export default function SignupPage() {
     setMessage("");
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000); // 15 秒でタイムアウト
+    const timer = setTimeout(() => controller.abort(), 15_000);
 
     try {
       const res = await fetch("/api/auth/signup", {
@@ -32,6 +33,7 @@ export default function SignupPage() {
       if (!res.ok) {
         setError(typeof data.error === "string" ? data.error : "登録に失敗しました");
       } else {
+        setEmailSent(data.emailSent !== false);
         setMessage(data.message);
       }
     } catch (err) {
@@ -59,11 +61,13 @@ export default function SignupPage() {
 
         {message ? (
           <div className="glass p-6 text-center space-y-3">
-            <div className="text-2xl">📧</div>
-            <p className="text-white/80">{message}</p>
-            <p className="text-white/50 text-sm">
-              ※ 開発環境ではサーバーコンソールにURLが表示されます
-            </p>
+            <div className="text-2xl">{emailSent ? "📧" : "⚠️"}</div>
+            <p className={emailSent ? "text-white/80" : "text-yellow-300/90"}>{message}</p>
+            {!emailSent && (
+              <p className="text-white/50 text-xs">
+                登録は完了しています。後ほど再度お試しいただくか、管理者までお問い合わせください。
+              </p>
+            )}
             <Link href="/auth/login" className="btn-primary block text-center text-sm">
               ログインへ
             </Link>

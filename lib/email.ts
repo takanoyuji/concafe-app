@@ -18,9 +18,14 @@ export async function sendEmail({
   html: string;
   text?: string;
 }) {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`メール送信タイムアウト (${SEND_TIMEOUT_MS}ms)`)), SEND_TIMEOUT_MS)
-  );
+  let timerId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timerId = setTimeout(
+      () => reject(new Error(`メール送信タイムアウト (${SEND_TIMEOUT_MS}ms)`)),
+      SEND_TIMEOUT_MS
+    );
+  });
 
   const send = resend.emails.send({
     from: FROM,
@@ -30,14 +35,18 @@ export async function sendEmail({
     ...(text ? { text } : {}),
   });
 
-  const { data, error } = await Promise.race([send, timeout]);
+  try {
+    const { data, error } = await Promise.race([send, timeout]);
 
-  if (error) {
-    console.error("[EMAIL] 送信失敗:", { to, subject, error });
-    throw new Error(`メール送信に失敗しました: ${error.message}`);
+    if (error) {
+      console.error("[EMAIL] 送信失敗:", { to, subject, error });
+      throw new Error(`メール送信に失敗しました: ${error.message}`);
+    }
+
+    console.log("[EMAIL] 送信成功 message_id:", data?.id, "to:", to);
+  } finally {
+    clearTimeout(timerId);
   }
-
-  console.log("[EMAIL] 送信成功 message_id:", data?.id, "to:", to);
 }
 
 export async function sendVerificationEmail(email: string, token: string) {
