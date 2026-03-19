@@ -16,19 +16,33 @@ export default function SignupPage() {
     setError("");
     setMessage("");
 
-    const res = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000); // 15 秒でタイムアウト
 
-    const data = await res.json();
-    setLoading(false);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal,
+      });
 
-    if (!res.ok) {
-      setError(typeof data.error === "string" ? data.error : "登録に失敗しました");
-    } else {
-      setMessage(data.message);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "登録に失敗しました");
+      } else {
+        setMessage(data.message);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("接続がタイムアウトしました。しばらくしてから再度お試しください。");
+      } else {
+        setError("通信エラーが発生しました。しばらくしてから再度お試しください。");
+      }
+    } finally {
+      clearTimeout(timer);
+      setLoading(false);
     }
   };
 

@@ -36,11 +36,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    console.log("[SIGNUP] トークン作成完了。メール送信開始:", email);
     await sendVerificationEmail(email, token);
+    console.log("[SIGNUP] メール送信完了:", email);
 
     return NextResponse.json({ message: "確認メールを送信しました" }, { status: 201 });
   } catch (e) {
-    console.error(e);
+    console.error("[SIGNUP] エラー:", e);
     return NextResponse.json({ error: "サーバーエラーが発生しました" }, { status: 500 });
   }
 }

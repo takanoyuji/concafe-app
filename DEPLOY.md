@@ -32,6 +32,14 @@ git pull origin main
 # 初回のみ .env にイメージ名を追加（方法B の場合）
 grep -q '^DOCKER_IMAGE=' .env || echo 'DOCKER_IMAGE=takanoyuji/concafe-app:latest' >> .env
 
+# Resend 用の環境変数を追加（まだなければ）
+grep -q '^RESEND_API_KEY=' .env || echo 'RESEND_API_KEY=re_5tvahnqq_ES4juXVkCq1ga9C7nY8HDvR3' >> .env
+grep -q '^MAIL_FROM=' .env    || echo 'MAIL_FROM=星狼 <info@mail.xing-lang.com>' >> .env
+# NEXT_PUBLIC_BASE_URL を本番ドメインに更新（localhost になっていると認証メールのリンクが壊れる）
+grep -q '^NEXT_PUBLIC_BASE_URL=' .env \
+  && sed -i 's|^NEXT_PUBLIC_BASE_URL=.*|NEXT_PUBLIC_BASE_URL=https://xing-lang.com|' .env \
+  || echo 'NEXT_PUBLIC_BASE_URL=https://xing-lang.com' >> .env
+
 docker compose down
 docker compose -f docker-compose.pull.yml pull
 docker compose -f docker-compose.pull.yml up -d --force-recreate
@@ -62,21 +70,16 @@ cd /opt/apps/concafe-app
 # コードを取得
 git pull origin main
 
-# .env に送信元を設定（まだなら追加）
-grep -q "^SMTP_FROM=" .env || echo "SMTP_FROM=noreply@test.xing-lang.com" >> .env
+# Resend 用の環境変数を追加（まだなければ）
+grep -q '^RESEND_API_KEY=' .env || echo 'RESEND_API_KEY=re_5tvahnqq_ES4juXVkCq1ga9C7nY8HDvR3' >> .env
+grep -q '^MAIL_FROM=' .env    || echo 'MAIL_FROM=星狼 <info@mail.xing-lang.com>' >> .env
+grep -q '^NEXT_PUBLIC_BASE_URL=' .env \
+  && sed -i 's|^NEXT_PUBLIC_BASE_URL=.*|NEXT_PUBLIC_BASE_URL=https://xing-lang.com|' .env \
+  || echo 'NEXT_PUBLIC_BASE_URL=https://xing-lang.com' >> .env
 
-# 再ビルド・再起動
+# 再ビルド・再起動（サーバーでビルドする場合）
 docker compose build --no-cache
 docker compose up -d --force-recreate
-```
-
-または、`deploy-to-server.sh` をサーバーに置いている場合は:
-
-```bash
-cd /opt/apps/concafe-app
-git pull origin main
-chmod +x deploy-to-server.sh
-./deploy-to-server.sh
 ```
 
 ## 3. 送信に必要な .env の例
@@ -84,13 +87,16 @@ chmod +x deploy-to-server.sh
 サーバーの `/opt/apps/concafe-app/.env` に以下が入っていること:
 
 ```env
-SMTP_HOST=email-smtp.ap-northeast-1.amazonaws.com
-SMTP_PORT=587
-SMTP_USER=（SESのSMTPユーザー名）
-SMTP_PASS=（SESのSMTPパスワード）
-SMTP_FROM=noreply@test.xing-lang.com
-NEXT_PUBLIC_BASE_URL=https://test.xing-lang.com
+# Resend（メール送信 - SMTP から移行済み）
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxx   # Resend ダッシュボードから取得
+MAIL_FROM=星狼 <info@mail.xing-lang.com>
+
+# アプリ
+NEXT_PUBLIC_BASE_URL=https://xing-lang.com   # ← 必ず本番ドメインに。localhost のままだとメールリンクが壊れる
 ```
+
+> **注意:** SMTP（AWS SES）は Resend に移行済みです。`SMTP_HOST` 等は不要です。
+> Resend ダッシュボード（resend.com）で `mail.xing-lang.com` のドメイン認証（DNS の SPF/DKIM）が完了していることを確認してください。
 
 ## 3.2 キャストデータの永続化とバックアップ
 
@@ -160,6 +166,13 @@ git pull origin main   # docker-compose.pull.yml を最新に
 docker load -i concafe-app.tar
 # イメージ名を .env に（1回だけ。load で表示された名前を使う）
 grep -q '^DOCKER_IMAGE=' .env || echo 'DOCKER_IMAGE=concafe-app-app:latest' >> .env
+
+# Resend 用の環境変数を追加（まだなければ）
+grep -q '^RESEND_API_KEY=' .env || echo 'RESEND_API_KEY=re_5tvahnqq_ES4juXVkCq1ga9C7nY8HDvR3' >> .env
+grep -q '^MAIL_FROM=' .env    || echo 'MAIL_FROM=星狼 <info@mail.xing-lang.com>' >> .env
+grep -q '^NEXT_PUBLIC_BASE_URL=' .env \
+  && sed -i 's|^NEXT_PUBLIC_BASE_URL=.*|NEXT_PUBLIC_BASE_URL=https://xing-lang.com|' .env \
+  || echo 'NEXT_PUBLIC_BASE_URL=https://xing-lang.com' >> .env
 
 docker compose down
 docker compose -f docker-compose.pull.yml up -d --force-recreate
@@ -285,5 +298,27 @@ docker compose build --no-cache
 
 ## 7. 動作確認（メール）
 
-- サイトの「パスワードを忘れた方」で、SES 検証済みのメールアドレス（例: xinglang22@gmail.com）を入力して送信
-- 届いたメールの差出人が `noreply@test.xing-lang.com` になっていることを確認
+デプロイ後、以下でメール送信が正常かを確認してください。
+
+```bash
+# テストメール送信（宛先は自分のアドレスに変更）
+curl -X POST https://xing-lang.com/api/test-email \
+  -H "Content-Type: application/json" \
+  -d '{"email": "your@email.com"}'
+# → {"success":true} が返ればOK
+```
+
+- コンテナログで確認: `docker compose -f docker-compose.pull.yml logs -f app`
+  - 成功: `[EMAIL] 送信成功 message_id: xxx`
+  - 失敗: `[EMAIL] 送信失敗: ...` のエラーが出る
+- Resend ダッシュボード（resend.com → Emails）でも送信履歴が確認できます
+- 届いたメールの差出人が `星狼 <info@mail.xing-lang.com>` になっていることを確認
+
+### トラブルシュート
+
+| 症状 | 原因 | 対処 |
+|---|---|---|
+| `RESEND_API_KEY が未設定です` | サーバーの `.env` に `RESEND_API_KEY` がない | `.env` に追記して `docker compose up -d --force-recreate` |
+| `{"success":false,"error":"メール送信タイムアウト"}` | サーバーから `api.resend.com` に繋がらない | ファイアウォールでアウトバウンド 443 を許可する |
+| メール内リンクが `http://localhost:3000/...` | `NEXT_PUBLIC_BASE_URL` が未設定 | `.env` に `NEXT_PUBLIC_BASE_URL=https://xing-lang.com` を追加 |
+| `401 Unauthorized` | API キーが無効 | Resend ダッシュボードでキーを確認・再発行 |

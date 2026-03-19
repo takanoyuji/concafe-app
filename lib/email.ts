@@ -4,6 +4,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.MAIL_FROM ?? "星狼 <info@mail.xing-lang.com>";
 const BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
+const SEND_TIMEOUT_MS = 10_000; // 10 秒でタイムアウト
+
 /** 共通メール送信関数 */
 export async function sendEmail({
   to,
@@ -16,13 +18,19 @@ export async function sendEmail({
   html: string;
   text?: string;
 }) {
-  const { data, error } = await resend.emails.send({
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`メール送信タイムアウト (${SEND_TIMEOUT_MS}ms)`)), SEND_TIMEOUT_MS)
+  );
+
+  const send = resend.emails.send({
     from: FROM,
     to,
     subject,
     html,
     ...(text ? { text } : {}),
   });
+
+  const { data, error } = await Promise.race([send, timeout]);
 
   if (error) {
     console.error("[EMAIL] 送信失敗:", { to, subject, error });

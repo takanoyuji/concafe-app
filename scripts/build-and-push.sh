@@ -11,9 +11,11 @@ if [[ "$PUSH_IMAGE" != *":"* ]]; then
 fi
 
 echo "=== Build (NEXT_PUBLIC_GA_ID from .env) ==="
-set -a
-[ -f .env ] && . .env
-set +a
+# .env 全体を source すると記号などでエラーになりうるため、必要な変数のみ抽出
+if [ -f .env ]; then
+  NEXT_PUBLIC_GA_ID=$(grep -E '^NEXT_PUBLIC_GA_ID=' .env 2>/dev/null | cut -d= -f2- | sed "s/^['\"]//;s/['\"]$//" | head -1)
+  export NEXT_PUBLIC_GA_ID
+fi
 docker compose build --no-cache
 
 echo "=== Tag & Push ==="
