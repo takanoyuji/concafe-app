@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import NavBar from "@/components/ui/NavBar";
 
@@ -14,7 +14,7 @@ interface Cast {
   store: { name: string };
 }
 
-export default function ProfilePage() {
+function ProfileForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isSetup = searchParams.get("setup") === "1";
@@ -93,16 +93,7 @@ export default function ProfilePage() {
   const filteredCastsFor = (excludeId: string) =>
     casts.filter((c) => c.id !== excludeId);
 
-  if (loading) {
-    return (
-      <>
-        <NavBar />
-        <main className="min-h-screen pt-24 flex items-center justify-center">
-          <p className="text-white/40">読み込み中...</p>
-        </main>
-      </>
-    );
-  }
+  if (loading) return null;
 
   return (
     <>
@@ -219,5 +210,20 @@ export default function ProfilePage() {
         </form>
       </main>
     </>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <>
+        <NavBar />
+        <main className="min-h-screen pt-24 flex items-center justify-center">
+          <p className="text-white/40">読み込み中...</p>
+        </main>
+      </>
+    }>
+      <ProfileForm />
+    </Suspense>
   );
 }
