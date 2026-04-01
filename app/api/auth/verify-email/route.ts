@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
+  const base = process.env.APP_URL ?? req.nextUrl.origin;
   const token = req.nextUrl.searchParams.get("token");
+
   if (!token) {
-    return NextResponse.json({ error: "トークンが必要です" }, { status: 400 });
+    return NextResponse.redirect(new URL("/auth/resend-verification?reason=invalid", base));
   }
 
   const record = await prisma.emailVerificationToken.findUnique({
@@ -13,12 +15,16 @@ export async function GET(req: NextRequest) {
   });
 
   if (!record) {
-    return NextResponse.json({ error: "無効なトークンです" }, { status: 400 });
+    return NextResponse.redirect(new URL("/auth/resend-verification?reason=invalid", base));
   }
 
   if (record.expiresAt < new Date()) {
     await prisma.emailVerificationToken.delete({ where: { token } });
-    return NextResponse.json({ error: "トークンが期限切れです" }, { status: 400 });
+    const params = new URLSearchParams({
+      reason: "expired",
+      email: record.user.email,
+    });
+    return NextResponse.redirect(new URL(`/auth/resend-verification?${params}`, base));
   }
 
   await prisma.user.update({
@@ -28,7 +34,5 @@ export async function GET(req: NextRequest) {
 
   await prisma.emailVerificationToken.delete({ where: { token } });
 
-  // 認証完了ページにリダイレクト（本番URLを優先）
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? req.nextUrl.origin;
-  return NextResponse.redirect(new URL("/auth/login?verified=1", base));
+  return NextResponse.redirect(new URL("/me/profile?setup=1", base));
 }

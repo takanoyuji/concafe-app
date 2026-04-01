@@ -10,11 +10,17 @@ model User {
   id                 String   @id @default(cuid())
   email              String   @unique
   passwordHash       String
-  role               String   @default("CUSTOMER")
-  emailVerified      Boolean  @default(false)
-  mustChangePassword Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  role               String    @default("CUSTOMER")
+  emailVerified      Boolean   @default(false)
+  mustChangePassword Boolean   @default(false)
+  birthdate          DateTime?
+  ageVerified        Boolean   @default(false)
+  name               String?
+  favoriteStoreId    String?
+  favoriteCast1Id    String?
+  favoriteCast2Id    String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   verificationTokens  EmailVerificationToken[]
   passwordResetTokens PasswordResetToken[]
@@ -69,6 +75,15 @@ model Title {
   id        String   @id @default(cuid())
   name      String
   threshold Int
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MenuItem {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  alt       String
   order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

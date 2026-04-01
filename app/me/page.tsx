@@ -7,6 +7,14 @@ import NavBar from "@/components/ui/NavBar";
 
 export const dynamic = "force-dynamic";
 
+function calcAge(birthdate: Date): number {
+  const today = new Date();
+  let age = today.getFullYear() - birthdate.getFullYear();
+  const m = today.getMonth() - birthdate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthdate.getDate())) age--;
+  return age;
+}
+
 function fmtDate(d: Date) {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
@@ -20,13 +28,29 @@ export default async function MePage() {
   const [user, balance, titleInfo] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.userId },
-      select: { id: true, email: true, role: true, createdAt: true },
+      select: {
+        id: true, email: true, role: true, birthdate: true, ageVerified: true, createdAt: true,
+        name: true, favoriteStoreId: true, favoriteCast1Id: true, favoriteCast2Id: true,
+      },
     }),
     getUserBalance(session.userId),
     getUserTitle(session.userId),
   ]);
 
   if (!user) redirect("/auth/login");
+
+  // プロフィール表示用：店舗・キャスト名を解決
+  const [favoriteStore, favoriteCast1, favoriteCast2] = await Promise.all([
+    user.favoriteStoreId
+      ? prisma.store.findUnique({ where: { id: user.favoriteStoreId }, select: { name: true } })
+      : null,
+    user.favoriteCast1Id
+      ? prisma.cast.findUnique({ where: { id: user.favoriteCast1Id }, select: { name: true } })
+      : null,
+    user.favoriteCast2Id
+      ? prisma.cast.findUnique({ where: { id: user.favoriteCast2Id }, select: { name: true } })
+      : null,
+  ]);
 
   // 最近のGIFT履歴（一般ユーザー用）
   const recentGifts = await prisma.pointLedger.findMany({
@@ -48,6 +72,8 @@ export default async function MePage() {
     id: string;
     email: string;
     emailVerified: boolean;
+    birthdate: Date | null;
+    ageVerified: boolean;
     createdAt: Date;
     balance: number;
   }> = [];
@@ -65,7 +91,7 @@ export default async function MePage() {
       }),
       prisma.user.findMany({
         where: { role: "CUSTOMER" },
-        select: { id: true, email: true, emailVerified: true, createdAt: true },
+        select: { id: true, email: true, emailVerified: true, birthdate: true, ageVerified: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
     ]);
@@ -93,12 +119,69 @@ export default async function MePage() {
 
         {/* プロフィール */}
         <div className="glass p-6 space-y-2">
-          <p className="text-white/50 text-xs">メールアドレス</p>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-white/50 text-xs">プロフィール</span>
+            <Link href="/me/profile" className="text-neon-purple text-xs hover:underline">
+              編集
+            </Link>
+          </div>
+          {user.name ? (
+            <>
+              <p className="text-white/50 text-xs">お名前</p>
+              <p className="text-white font-bold text-lg">{user.name}</p>
+            </>
+          ) : (
+            <p className="text-white/30 text-sm">
+              名前が未設定です。{" "}
+              <Link href="/me/profile" className="text-neon-purple hover:underline">設定する</Link>
+            </p>
+          )}
+          {favoriteStore && (
+            <>
+              <p className="text-white/50 text-xs mt-2">よく行く店舗</p>
+              <p className="text-white/80 text-sm">{favoriteStore.name}</p>
+            </>
+          )}
+          {(favoriteCast1 || favoriteCast2) && (
+            <>
+              <p className="text-white/50 text-xs mt-2">推しキャスト</p>
+              <div className="flex gap-2 flex-wrap">
+                {favoriteCast1 && (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-neon-purple/20 text-neon-purple border border-neon-purple/30">
+                    {favoriteCast1.name}
+                  </span>
+                )}
+                {favoriteCast2 && (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-neon-purple/20 text-neon-purple border border-neon-purple/30">
+                    {favoriteCast2.name}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+          <p className="text-white/50 text-xs mt-3">メールアドレス</p>
           <p className="text-white font-medium">{user.email}</p>
           <p className="text-white/50 text-xs mt-2">ロール</p>
           <p className="text-neon-purple font-bold">
             {user.role === "ADMIN" ? "⚙️ 管理者" : "⭐ 会員"}
           </p>
+          {user.birthdate && (
+            <>
+              <p className="text-white/50 text-xs mt-2">年齢</p>
+              <div className="flex items-center gap-2">
+                <p className="text-white font-medium">{calcAge(new Date(user.birthdate))} 歳</p>
+                {user.ageVerified ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
+                    ✓ 年齢確認済み
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                    年齢確認待ち
+                  </span>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* ポイント残高 */}
@@ -221,7 +304,9 @@ export default async function MePage() {
                       <tr className="text-white/40 text-xs border-b border-white/10">
                         <th className="text-left py-2 pr-3 font-medium">メールアドレス</th>
                         <th className="text-right py-2 pr-3 font-medium">残高</th>
-                        <th className="text-center py-2 pr-3 font-medium">認証</th>
+                        <th className="text-center py-2 pr-3 font-medium">メール</th>
+                        <th className="text-left py-2 pr-3 font-medium">生年月日</th>
+                        <th className="text-center py-2 pr-3 font-medium">年齢確認</th>
                         <th className="text-left py-2 font-medium">登録日</th>
                       </tr>
                     </thead>
@@ -239,6 +324,18 @@ export default async function MePage() {
                               <span className="text-green-400 text-xs">✓</span>
                             ) : (
                               <span className="text-yellow-500 text-xs">未</span>
+                            )}
+                          </td>
+                          <td className="py-2 pr-3 text-white/50 text-xs whitespace-nowrap">
+                            {c.birthdate ? new Date(c.birthdate).toLocaleDateString("ja-JP") : "—"}
+                          </td>
+                          <td className="py-2 pr-3 text-center">
+                            {c.ageVerified ? (
+                              <span className="text-green-400 text-xs">✓</span>
+                            ) : c.birthdate ? (
+                              <span className="text-yellow-500 text-xs">未</span>
+                            ) : (
+                              <span className="text-white/20 text-xs">—</span>
                             )}
                           </td>
                           <td className="py-2 text-white/40 text-xs whitespace-nowrap">
