@@ -8,7 +8,7 @@ export async function GET() {
   const smtpHost = !!process.env.SMTP_HOST;
   const smtpUser = !!process.env.SMTP_USER;
   const smtpPass = !!process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM ?? "noreply@test.xing-lang.com";
+  const from = process.env.SMTP_FROM ?? "noreply@test.vliverlab.com";
   return NextResponse.json({
     smtpConfigured: smtpHost && smtpUser && smtpPass,
     smtpHostSet: smtpHost,

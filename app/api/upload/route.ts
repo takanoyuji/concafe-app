@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  const dir = "/data/cast";
+  const dir = process.env.CAST_IMAGE_DIR ?? path.join(process.cwd(), "public/images/cast");
   await mkdir(dir, { recursive: true });
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";

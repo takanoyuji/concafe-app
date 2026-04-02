@@ -26,12 +26,10 @@ export async function getCumulativeGiftTotal(userId: string): Promise<number> {
   return result._sum.amount ?? 0;
 }
 
-export async function getCastRanking(storeId?: string) {
+export async function getCastRanking() {
   const casts = await prisma.cast.findMany({
-    where: storeId ? { storeId } : undefined,
     include: {
       ledgerItems: { where: { type: "GIFT" }, select: { amount: true } },
-      store: { select: { name: true, slug: true } },
     },
   });
 
@@ -40,15 +38,12 @@ export async function getCastRanking(storeId?: string) {
       id: cast.id,
       name: cast.name,
       imageUrl: cast.imageUrl,
-      storeName: cast.store.name,
-      storeSlug: cast.store.slug,
       totalPoints: cast.ledgerItems.reduce((s, l) => s + l.amount, 0),
     }))
     .sort((a, b) => b.totalPoints - a.totalPoints);
 }
 
 export async function getMonthlyRanking(
-  storeId?: string,
   year?: number,
   month?: number // 1-indexed (1=January)
 ) {
@@ -60,7 +55,6 @@ export async function getMonthlyRanking(
   const endOfMonth = new Date(y, m + 1, 1);
 
   const casts = await prisma.cast.findMany({
-    where: storeId ? { storeId } : undefined,
     include: {
       ledgerItems: {
         where: {
@@ -69,7 +63,6 @@ export async function getMonthlyRanking(
         },
         select: { amount: true },
       },
-      store: { select: { name: true, slug: true } },
     },
   });
 
@@ -78,8 +71,6 @@ export async function getMonthlyRanking(
       id: cast.id,
       name: cast.name,
       imageUrl: cast.imageUrl,
-      storeName: cast.store.name,
-      storeSlug: cast.store.slug,
       totalPoints: cast.ledgerItems.reduce((s, l) => s + l.amount, 0),
     }))
     .sort((a, b) => b.totalPoints - a.totalPoints);

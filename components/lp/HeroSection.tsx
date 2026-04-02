@@ -1,98 +1,255 @@
+"use client";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { logoUrl } from "@/lib/logo";
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  color: string;
+  opacity: number;
+}
+
+const PARTICLE_COLORS = [
+  "#00f0ff", "#00f0ff", "#00f0ff", "#00f0ff", "#00f0ff",
+  "#ff2d9b", "#ff2d9b", "#ff2d9b", "#ff2d9b",
+  "#b44dff", "#b44dff", "#b44dff",
+  "#ffe14d", "#ffe14d",
+];
+
+function ParticleCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    let particles: Particle[] = [];
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+
+    const initParticles = () => {
+      const count = Math.floor(55 + Math.random() * 10); // 100〜120 → 55〜65個に削減
+      particles = Array.from({ length: count }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.45,
+        vy: -(Math.random() * 0.35 + 0.08),
+        size: Math.random() * 3 + 0.5,
+        color: PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)],
+        opacity: Math.random() * 0.55 + 0.25,
+      }));
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (const p of particles) {
+        if (p.x < -10 || p.x > canvas.width + 10 || p.y < -10) {
+          p.x = Math.random() * canvas.width;
+          p.y = canvas.height + 5;
+          p.vy = -(Math.random() * 0.35 + 0.08);
+          p.vx = (Math.random() - 0.5) * 0.45;
+          continue;
+        }
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // ctx.filter は廃止（GPU負荷の最大要因）
+        // save/restore も廃止してAPIコール削減
+        ctx.globalAlpha = p.opacity;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = p.size * 2; // 4 → 2 に削減
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // フレーム末尾でリセット
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+
+      animId = requestAnimationFrame(draw);
+    };
+
+    resize();
+    initParticles();
+    draw();
+
+    window.addEventListener("resize", resize);
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      aria-hidden="true"
+    />
+  );
+}
 
 export default function HeroSection() {
   return (
     <section
-      className="relative min-h-screen flex flex-col items-center justify-center px-4 pt-16 overflow-hidden"
-      style={{
-        background:
-          "radial-gradient(ellipse at 50% 0%, #1e1354 0%, #0d0820 40%, #06040f 100%)",
-      }}
+      className="relative flex flex-col items-center justify-center px-4 pt-16 overflow-hidden"
+      style={{ minHeight: "100vh" }}
     >
-      {/* 背景の星 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        {Array.from({ length: 60 }).map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full bg-white"
-            style={{
-              width: `${Math.random() * 2 + 1}px`,
-              height: `${Math.random() * 2 + 1}px`,
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              opacity: Math.random() * 0.7 + 0.1,
-              animation: `pulse ${Math.random() * 3 + 2}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * 3}s`,
-            }}
-          />
-        ))}
-      </div>
+      {/* ダーク背景 */}
+      <div
+        className="absolute inset-0"
+        style={{ background: "radial-gradient(ellipse at 50% 0%, #0d0b1a 0%, #07060e 60%)" }}
+        aria-hidden="true"
+      />
 
-      {/* ロゴ */}
-      <div className="relative z-10 flex flex-col items-center gap-8">
-        <div className="neon-glow-purple rounded-2xl p-2">
-          <img
-            src={logoUrl}
-            alt="星狼 ロゴ"
-            width={280}
-            height={140}
-            className="object-contain w-[280px] h-[140px]"
-            fetchPriority="high"
-          />
-        </div>
+      {/* パーティクル */}
+      <ParticleCanvas />
 
-        <div className="text-center space-y-4">
-          <p className="text-white/60 text-sm tracking-[0.3em] uppercase">
-            Male Crossdressing BL Concafe
-          </p>
-          <h1 className="text-4xl md:text-6xl font-black text-neon-glow gradient-text">
-            星狼
-          </h1>
-          <p className="text-white/70 text-base md:text-lg max-w-md mx-auto leading-relaxed">
-            池袋・日本橋・名古屋栄
-            <br />
-            男装キャストが贈る、星夜の物語
-          </p>
-        </div>
+      {/* 中央ぼんやり光球 */}
+      <div
+        className="absolute pointer-events-none hero-orb"
+        style={{
+          width: "60vw",
+          height: "60vw",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          background:
+            "radial-gradient(circle, rgba(0,240,255,0.08), rgba(180,77,255,0.05), transparent 70%)",
+          borderRadius: "50%",
+        }}
+        aria-hidden="true"
+      />
 
-        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xs sm:max-w-sm">
-          <a href="#sec03" className="btn-primary text-center">
+      {/* コンテンツ */}
+      <div className="relative z-10 flex flex-col items-center gap-6 text-center">
+        {/* タイトル */}
+        <h1
+          className="font-orbitron font-black holo-text hero-title"
+          style={{
+            fontSize: "clamp(3rem, 8vw, 7rem)",
+            lineHeight: 1.1,
+            textShadow:
+              "0 0 20px rgba(0,240,255,0.5), 0 0 40px rgba(180,77,255,0.3), 0 0 80px rgba(255,45,155,0.2)",
+          }}
+        >
+          VLiverLab
+        </h1>
+
+        {/* サブタイトル */}
+        <p
+          className="hero-sub text-white font-rajdhani font-semibold"
+          style={{
+            fontSize: "clamp(0.95rem, 2.5vw, 1.25rem)",
+            letterSpacing: "0.15em",
+          }}
+        >
+          VTuberと話せちゃう&nbsp;&nbsp;近未来 Cafe &amp; Bar
+        </p>
+
+        {/* CTAボタン */}
+        <div className="hero-cta flex flex-col sm:flex-row gap-4 mt-2">
+          <a
+            href="#menu"
+            className="hero-btn-fill font-rajdhani font-bold text-base px-8 py-3 rounded-full text-white tracking-widest transition-all duration-300"
+          >
             MENU を見る
           </a>
-          <Link href="/auth/signup" className="btn-secondary text-center">
-            会員登録
-          </Link>
+          <a
+            href="https://line.me/R/ti/p/@468iwzei?ts=06010015&oat_content=url"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hero-btn-ghost font-rajdhani font-bold text-base px-8 py-3 rounded-full text-white tracking-widest transition-all duration-300"
+          >
+            ご予約はこちら
+          </a>
         </div>
-
-        {/* 公式LINE */}
-        <a
-          href="https://line.me/R/ti/p/@xinglang"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[#06C755]/40 bg-[#06C755]/10 hover:bg-[#06C755]/20 hover:border-[#06C755]/70 transition-all duration-300 w-full max-w-xs sm:max-w-sm"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-[#06C755]" aria-hidden="true">
-            <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
-          </svg>
-          <span className="text-[#06C755] font-bold text-sm">公式LINE・ご予約はこちら</span>
-        </a>
-
-        <a
-          href="#sec01"
-          className="text-white/40 hover:text-white/70 transition-colors animate-bounce mt-4"
-          aria-label="下にスクロール"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </a>
       </div>
 
+      {/* 下スクロール矢印 */}
+      <a
+        href="#sec01"
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 hero-arrow"
+        aria-label="下にスクロール"
+        style={{ color: "#00f0ff", opacity: 0.6 }}
+      >
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="animate-bounce"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </a>
+
       <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.1; }
-          50% { opacity: 0.8; }
+        /* 光球アニメーション */
+        @keyframes orb-pulse {
+          0%, 100% { transform: translate(-50%, -50%) scale(0.9); }
+          50% { transform: translate(-50%, -50%) scale(1.1); }
+        }
+        .hero-orb {
+          animation: orb-pulse 8s ease-in-out infinite;
+        }
+
+        /* 登場アニメーション */
+        @keyframes hero-fade-up {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes hero-scale-in {
+          from { opacity: 0; transform: scale(0.85); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .hero-title {
+          animation: hero-scale-in 0.7s ease-out 0.2s both;
+        }
+        .hero-sub {
+          animation: hero-fade-up 0.6s ease-out 0.55s both;
+        }
+        .hero-cta {
+          animation: hero-fade-up 0.6s ease-out 0.9s both;
+        }
+        .hero-arrow {
+          animation: hero-fade-up 0.6s ease-out 1.3s both;
+        }
+
+        /* 塗りボタン */
+        .hero-btn-fill {
+          background: linear-gradient(135deg, #00f0ff 0%, #b44dff 50%, #ff2d9b 100%);
+          background-size: 200% 200%;
+          animation: holo-shift 4s ease infinite;
+          will-change: background-position;
+        }
+        .hero-btn-fill:hover {
+          transform: scale(1.05);
+          box-shadow: 0 0 20px rgba(0,240,255,0.5), 0 0 40px rgba(180,77,255,0.3);
+        }
+
+        /* ゴーストボタン */
+        .hero-btn-ghost {
+          border: 1.5px solid rgba(0,240,255,0.5);
+          background: transparent;
+        }
+        .hero-btn-ghost:hover {
+          background: linear-gradient(135deg, rgba(0,240,255,0.15), rgba(180,77,255,0.1));
+          border-color: rgba(0,240,255,0.9);
+          box-shadow: 0 0 16px rgba(0,240,255,0.3);
         }
       `}</style>
     </section>

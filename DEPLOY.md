@@ -1,324 +1,306 @@
-# サーバーへデプロイしてメール送信を有効にする
+# デプロイ手順
 
-## 今すぐやる手順（ローカルで Docker 起動 → サーバに反映）
+手元でビルド・動作確認してから、イメージをサーバに渡して起動する流れです。
 
-サーバー上でビルドすると時間がかかるため、**ローカルで Docker を立ち上げてから**イメージをサーバに渡します。
+---
 
-### ローカル（手元 PC）
+## 再デプロイ用コマンド（まとめ）
 
+**手元（WSL）で 1 本でビルド〜push まで:**
 ```bash
-cd /home/takan/concafe-app   # またはプロジェクトのパス
-
-# 1) ローカルでビルド・起動して動作確認（任意だが推奨）
-docker compose up --build -d
-# → http://localhost:3000 で確認後
-docker compose down
-
-# 2) イメージをビルドしてレジストリに push（方法B の場合）
-# 事前: .env に NEXT_PUBLIC_GA_ID を入れておく。docker login 済みであること。
-chmod +x scripts/build-and-push.sh
-./scripts/build-and-push.sh
+chmod +x deploy.sh   # 初回のみ
+./deploy.sh
 ```
+※ `NEXT_PUBLIC_GA_ID` を渡してビルドするので、GA が有効なイメージが push されます。
 
-- **Docker Hub を使わない場合**（save/load）は、下記「方法A」の `scripts/build-and-save.sh` を使い、生成された `concafe-app.tar` をサーバに `scp` してください。
-
-### サーバー
-
+**サーバで pull と起動:**
 ```bash
 ssh ubuntu@219.94.244.166
-cd /opt/apps/concafe-app
+cd /opt/apps/vliverlab-hp
+docker compose -f docker-compose.pull.yml pull
+docker compose -f docker-compose.pull.yml up -d --force-recreate
+```
+※ サーバに `deploy-server.sh` を置いている場合は `./deploy-server.sh` だけでも可。
+
+---
+
+## ここからサーバにアップするには（コマンド一覧）
+
+以下、**手元の PC** と **サーバ** で実行するコマンドを順に書きます。  
+`YOUR_SERVER` はサーバの SSH（例: `ubuntu@219.94.244.166`）、`/opt/apps/vliverlab-hp` はサーバ上のデプロイ先ディレクトリに読み替えてください。
+
+### 方法A: Docker Hub 経由（push → サーバで pull）
+
+**1. 手元: .env を用意してビルド・push**
+
+```bash
+cd /home/takan/vliverlab-hp   # プロジェクトルート（WSL のパスに合わせて変更）
+
+# .env がまだなら作成（NEXT_PUBLIC_BASE_URL を必ず設定）
+cp .env.example .env
+# ここで .env を編集してから次へ
+
+# ビルド
+docker compose build --no-cache
+
+# Docker Hub にログイン（初回またはログアウト後）
+docker login
+# ユーザー: takanodocker、パスワードを入力
+
+# イメージを push
+docker push takanodocker/vliverlab-hp:latest
+```
+
+**2. サーバ: リポジトリと .env.production を用意（初回 or 設定変更時）**
+
+```bash
+ssh YOUR_SERVER
+
+cd /opt/apps/vliverlab-hp
 git pull origin main
 
-# 初回のみ .env にイメージ名を追加（方法B の場合）
-grep -q '^DOCKER_IMAGE=' .env || echo 'DOCKER_IMAGE=takanoyuji/concafe-app:latest' >> .env
+# .env.production がない場合は作成（SMTP・JWT など実行時用）
+# 例: nano .env.production
+```
 
-# Resend 用の環境変数を追加（まだなければ）
-grep -q '^RESEND_API_KEY=' .env || echo 'RESEND_API_KEY=re_5tvahnqq_ES4juXVkCq1ga9C7nY8HDvR3' >> .env
-grep -q '^MAIL_FROM=' .env    || echo 'MAIL_FROM=星狼 <info@mail.xing-lang.com>' >> .env
-# NEXT_PUBLIC_BASE_URL を本番ドメインに更新（localhost になっていると認証メールのリンクが壊れる）
-grep -q '^NEXT_PUBLIC_BASE_URL=' .env \
-  && sed -i 's|^NEXT_PUBLIC_BASE_URL=.*|NEXT_PUBLIC_BASE_URL=https://xing-lang.com|' .env \
-  || echo 'NEXT_PUBLIC_BASE_URL=https://xing-lang.com' >> .env
+**3. サーバ: バックアップ（既に稼働中なら推奨）**
 
-docker compose down
+```bash
+cd /opt/apps/vliverlab-hp
+mkdir -p backups
+docker volume ls   # ボリューム名を確認（例: vliverlab-hp_app_data）
+
+docker run --rm \
+  -v vliverlab-hp_app_data:/data:ro \
+  -v "$(pwd)/backups:/backup" \
+  alpine \
+  tar czf "/backup/app_data_$(date +%Y%m%d_%H%M%S).tar.gz" -C /data .
+```
+
+**4. サーバ: イメージを取得して起動**
+
+```bash
+cd /opt/apps/vliverlab-hp
 docker compose -f docker-compose.pull.yml pull
 docker compose -f docker-compose.pull.yml up -d --force-recreate
 ```
 
 ---
 
-## 1. ローカルでコードを GitHub にプッシュ
+### 方法B: tar で送る（save → scp → サーバで load）
+
+**1. 手元: ビルドして tar 出力**
 
 ```bash
-cd /home/takan/concafe-app   # またはプロジェクトのパス
-git add lib/email.ts deploy-to-server.sh DEPLOY.md
-git commit -m "fix: SMTP送信元デフォルトを noreply@test.xing-lang.com に、デプロイ手順を追加"
-git push origin main
-```
+cd /home/takan/vliverlab-hp
+cp .env.example .env   # 未作成なら。編集して NEXT_PUBLIC_BASE_URL を設定
 
-## 2. サーバーに SSH してコード反映・再起動
-
-```bash
-ssh ubuntu@219.94.244.166
-```
-
-ログイン後:
-
-```bash
-cd /opt/apps/concafe-app
-
-# コードを取得
-git pull origin main
-
-# Resend 用の環境変数を追加（まだなければ）
-grep -q '^RESEND_API_KEY=' .env || echo 'RESEND_API_KEY=re_5tvahnqq_ES4juXVkCq1ga9C7nY8HDvR3' >> .env
-grep -q '^MAIL_FROM=' .env    || echo 'MAIL_FROM=星狼 <info@mail.xing-lang.com>' >> .env
-grep -q '^NEXT_PUBLIC_BASE_URL=' .env \
-  && sed -i 's|^NEXT_PUBLIC_BASE_URL=.*|NEXT_PUBLIC_BASE_URL=https://xing-lang.com|' .env \
-  || echo 'NEXT_PUBLIC_BASE_URL=https://xing-lang.com' >> .env
-
-# 再ビルド・再起動（サーバーでビルドする場合）
 docker compose build --no-cache
-docker compose up -d --force-recreate
+docker save takanodocker/vliverlab-hp:latest -o vliverlab-hp-image.tar
 ```
 
-## 3. 送信に必要な .env の例
-
-サーバーの `/opt/apps/concafe-app/.env` に以下が入っていること:
-
-```env
-# Resend（メール送信 - SMTP から移行済み）
-RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxx   # Resend ダッシュボードから取得
-MAIL_FROM=星狼 <info@mail.xing-lang.com>
-
-# アプリ
-NEXT_PUBLIC_BASE_URL=https://xing-lang.com   # ← 必ず本番ドメインに。localhost のままだとメールリンクが壊れる
-```
-
-> **注意:** SMTP（AWS SES）は Resend に移行済みです。`SMTP_HOST` 等は不要です。
-> Resend ダッシュボード（resend.com）で `mail.xing-lang.com` のドメイン認証（DNS の SPF/DKIM）が完了していることを確認してください。
-
-## 3.2 キャストデータの永続化とバックアップ
-
-**なぜ消えたか:** 以前は DB がコンテナ内（`/app`）にあり、`docker compose up -d --force-recreate` でコンテナを作り直すとコンテナごと消えていました。現在は **DB を永続ボリューム `/data` に保存**するようにしてあり、イメージの差し替えやコンテナの再作成では消えません。
-
-- **DB ファイル**: イメージのデフォルトで `file:/data/concafe.db`。ボリューム `app_data` が `/data` にマウントされているため、コンテナを消してもデータは残ります。
-- **キャスト画像**: `/data/cast` にアップロードされた画像も同じボリューム内にあります。
-
-**今後のデプロイ前にバックアップしたい場合（推奨）:**
+**2. 手元: サーバに tar を送る**
 
 ```bash
-# サーバーで実行
-cd /opt/apps/concafe-app
-# DB のみバックアップ（簡単）
-docker compose -f docker-compose.pull.yml exec app cat /data/concafe.db > backup_$(date +%Y%m%d).db
-# ボリューム名が不明な場合は docker volume ls で concafe-app_app_data などを確認
-# ボリューム全体を tar で取得（キャスト画像も含む）
-docker run --rm -v concafe-app_app_data:/data -v $(pwd):/backup alpine tar czf /backup/app_data_backup_$(date +%Y%m%d).tar.gz -C /data .
+scp vliverlab-hp-image.tar YOUR_SERVER:/opt/apps/vliverlab-hp/
+# 例: scp vliverlab-hp-image.tar ubuntu@219.94.244.166:/opt/apps/vliverlab-hp/
 ```
 
-バックアップから DB だけ復元する例:
+**3. サーバ: バックアップ（既に稼働中なら推奨）**
 
 ```bash
-# コンテナを止めてから
+ssh YOUR_SERVER
+cd /opt/apps/vliverlab-hp
+mkdir -p backups
+docker volume ls
+docker run --rm \
+  -v vliverlab-hp_app_data:/data:ro \
+  -v "$(pwd)/backups:/backup" \
+  alpine \
+  tar czf "/backup/app_data_$(date +%Y%m%d_%H%M%S).tar.gz" -C /data .
+```
+
+**4. サーバ: イメージを load して起動**
+
+```bash
+cd /opt/apps/vliverlab-hp
+docker load -i vliverlab-hp-image.tar
+docker compose -f docker-compose.pull.yml up -d --force-recreate
+```
+
+**5. 手元: 不要になった tar を消してよい**
+
+```bash
+rm vliverlab-hp-image.tar
+```
+
+---
+
+## 1. 事前に .env を用意する
+
+**ビルド前に**、プロジェクトルートに `.env` を用意し、次の値を入れておく。
+
+- **必須（ビルド時に埋め込まれる）**
+  - `NEXT_PUBLIC_BASE_URL` … 本番（またはステージング）の公開 URL（例: `https://vliverlab.com`）。メール内リンクなどに使う。
+- **任意**
+  - `NEXT_PUBLIC_GA_ID` … Google Analytics 4 の測定 ID。未設定なら計測なし。
+
+```bash
+cp .env.example .env
+# .env を編集して NEXT_PUBLIC_BASE_URL 等を設定
+```
+
+実行時用（SMTP・JWT など）は `.env` に書いておくと `docker compose` の `env_file` でコンテナに渡ります。サーバ用には `.env.production` を用意してもよいです（`docker-compose.pull.yml` は `env_file: .env.production` を参照）。
+
+---
+
+## 2. 手元（WSL/ローカル）でビルド・起動
+
+ローカルで動作確認してからサーバに反映する想定です。
+
+```bash
+# ビルド＆起動
+docker compose up -d --build
+
+# 確認
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3000
+```
+
+停止するときは `docker compose down`（ボリュームは残ります）。詳細は [README.md](./README.md#docker-でローカルにビルド・起動) を参照。
+
+---
+
+## 3. イメージをサーバに渡す
+
+手元でビルドしたイメージをサーバで使う方法は次の二通りです。
+
+### 方法A: Docker Hub で push / サーバで pull
+
+1. **手元で Docker Hub にログイン**
+   ```bash
+   docker login
+   # ユーザー: takanodocker
+   ```
+
+2. **タグを付けて push**
+   ```bash
+   docker compose build --no-cache
+   docker tag takanodocker/vliverlab-hp:latest takanodocker/vliverlab-hp:latest
+   docker push takanodocker/vliverlab-hp:latest
+   ```
+
+3. **サーバで pull**
+   ```bash
+   ssh user@your-server
+   cd /opt/apps/vliverlab-hp   # またはデプロイ先
+   docker compose -f docker-compose.pull.yml pull
+   docker compose -f docker-compose.pull.yml up -d --force-recreate
+   ```
+
+### 方法B: tar で保存して scp で送り、サーバで load
+
+1. **手元でイメージを tar に出力**
+   ```bash
+   docker compose build --no-cache
+   docker save takanodocker/vliverlab-hp:latest -o vliverlab-hp-image.tar
+   ```
+
+2. **サーバに scp で送る**
+   ```bash
+   scp vliverlab-hp-image.tar user@your-server:/opt/apps/vliverlab-hp/
+   ```
+
+3. **サーバで load**
+   ```bash
+   ssh user@your-server
+   cd /opt/apps/vliverlab-hp
+   docker load -i vliverlab-hp-image.tar
+   docker compose -f docker-compose.pull.yml up -d --force-recreate
+   ```
+
+---
+
+## 4. サーバ側の起動（ビルドなし）
+
+サーバでは **ビルドせず**、イメージの取得（pull または load）と `up` だけにします。
+
+1. リポジトリと設定ファイルを用意（初回または更新時）
+   ```bash
+   cd /opt/apps/vliverlab-hp
+   git pull origin main   # または docker-compose.pull.yml だけコピー
+   ```
+
+2. サーバ用 `.env` を用意（`docker-compose.pull.yml` が参照する）
+   - リポジトリの `.env.server.example` をコピーして `.env` を作成し、値を入れる。必須は `JWT_SECRET`。メール送信を使う場合は SMTP 関連も設定。
+
+3. 方法A の場合: pull して起動
+   ```bash
+   docker compose -f docker-compose.pull.yml pull
+   docker compose -f docker-compose.pull.yml up -d --force-recreate
+   ```
+
+4. 方法B の場合: 上記「方法B」の 3 のとおり `docker load` 後に同じ `up` コマンドを実行。
+
+アプリは `127.0.0.1:3001` でリッスンします。リバースプロキシ（nginx 等）で 443 に振る想定です。
+
+### サーバの .env に入れる内容
+
+| 変数 | 必須 | 説明 |
+|------|------|------|
+| `JWT_SECRET` | ○ | セッション用の秘密鍵。本番ではランダムな長い文字列にすること。 |
+| `SMTP_HOST` | メール送信するなら | SMTP サーバのホスト（例: `email-smtp.ap-northeast-1.amazonaws.com`） |
+| `SMTP_PORT` |  | 通常 `587` |
+| `SMTP_USER` |  | SMTP 認証ユーザー |
+| `SMTP_PASS` |  | SMTP 認証パスワード |
+| `SMTP_FROM` |  | 送信元メールアドレス（例: `noreply@vliverlab.com`） |
+
+- `NODE_ENV` と `DATABASE_URL` は compose 側で指定しているため、.env に書かなくてよい。
+- テンプレート: リポジトリの **`.env.server.example`** をコピーして `.env` を作成し、上記を埋める。
+
+---
+
+## 5. データ永続化とバックアップ
+
+- **永続化**: DB（SQLite）とアップロードファイル（キャスト画像）は Docker の名前付きボリューム `app_data` の `/data` に保存しています。`docker compose up -d --force-recreate` でコンテナを再作成してもデータは消えません。
+- **バックアップ**: デプロイ前にボリュームのバックアップを取ることを推奨します。
+
+### デプロイ前のバックアップ手順（サーバで実行）
+
+```bash
+cd /opt/apps/vliverlab-hp
+mkdir -p backups
+
+# ボリューム app_data を tar で取得（コンテナは起動したままでも可）
+# ボリューム名は docker volume ls で確認（例: vliverlab-hp_app_data）
+docker run --rm \
+  -v vliverlab-hp_app_data:/data:ro \
+  -v "$(pwd)/backups:/backup" \
+  alpine \
+  tar czf "/backup/app_data_$(date +%Y%m%d_%H%M%S).tar.gz" -C /data .
+
+# 必要に応じて別サーバや S3 にコピー
+```
+
+リストアするときは、同じボリューム名で compose を使っている前提で:
+
+```bash
 docker compose -f docker-compose.pull.yml down
-docker run --rm -v concafe-app_app_data:/data -v $(pwd):/backup alpine sh -c "cp /backup/backup_YYYYMMDD.db /data/concafe.db"
+docker run --rm \
+  -v vliverlab-hp_app_data:/data \
+  -v "$(pwd)/backups:/backup" \
+  alpine \
+  sh -c "cd /data && tar xzf /backup/app_data_YYYYMMDD_HHMMSS.tar.gz"
 docker compose -f docker-compose.pull.yml up -d
 ```
 
-## 4. ビルドが遅い場合（40分以上かかる場合）
-
-サーバー上で `docker compose build` すると Next.js のビルドに 40分以上かかることがあります（CPU/メモリが少ないため）。
-
-**すぐ試せること**
-
-- Dockerfile に `NODE_OPTIONS=--max-old-space-size=4096` を入れてあります。サーバーの RAM が 4GB 未満の場合は `2048` に下げてください。
-- ビルド時だけメモリを増やす: `NODE_OPTIONS=--max-old-space-size=4096 docker compose build`
-
-**根本的に短くする方法（おすすめ）** → 次の「手元でビルドしてサーバーに渡す運用」を参照。
-
 ---
 
-## 4.2 手元でビルドしてサーバーに渡す運用（推奨）
+## まとめ
 
-サーバーではビルドせず、手元 PC（WSL）でビルドしたイメージだけ渡して起動します。**方法は2通り**です。
-
-### 方法A: save / load（レジストリ不要・初回が簡単）
-
-**手元 PC（WSL）**
-```bash
-cd /home/takan/concafe-app
-# .env に NEXT_PUBLIC_GA_ID=G-B6LN2JP5N1 を入れておく
-chmod +x scripts/build-and-save.sh
-./scripts/build-and-save.sh
-# → concafe-app.tar ができる（数分〜十数分）
-
-# サーバーに tar を送る（ファイルサイズは 500MB〜1GB 程度）
-scp concafe-app.tar ubuntu@219.94.244.166:/opt/apps/concafe-app/
-```
-
-**サーバー**
-```bash
-ssh ubuntu@219.94.244.166
-cd /opt/apps/concafe-app
-git pull origin main   # docker-compose.pull.yml を最新に
-
-docker load -i concafe-app.tar
-# イメージ名を .env に（1回だけ。load で表示された名前を使う）
-grep -q '^DOCKER_IMAGE=' .env || echo 'DOCKER_IMAGE=concafe-app-app:latest' >> .env
-
-# Resend 用の環境変数を追加（まだなければ）
-grep -q '^RESEND_API_KEY=' .env || echo 'RESEND_API_KEY=re_5tvahnqq_ES4juXVkCq1ga9C7nY8HDvR3' >> .env
-grep -q '^MAIL_FROM=' .env    || echo 'MAIL_FROM=星狼 <info@mail.xing-lang.com>' >> .env
-grep -q '^NEXT_PUBLIC_BASE_URL=' .env \
-  && sed -i 's|^NEXT_PUBLIC_BASE_URL=.*|NEXT_PUBLIC_BASE_URL=https://xing-lang.com|' .env \
-  || echo 'NEXT_PUBLIC_BASE_URL=https://xing-lang.com' >> .env
-
-docker compose down
-docker compose -f docker-compose.pull.yml up -d --force-recreate
-```
-
-- **メリット**: Docker Hub などのアカウント不要  
-- **デメリット**: 毎回 tar を転送するので、回線によっては 5〜15 分かかることがある
-
----
-
-### 方法B: Docker Hub に push / サーバーで pull（転送が速い）
-
-**1回だけ: Docker Hub にログイン**
-```bash
-docker login
-# ユーザー名・パスワードを入力
-```
-
-**手元 PC（WSL）**
-```bash
-cd /home/takan/concafe-app
-# 自分のリポジトリ名に変える（例: takanoyuji/concafe-app）
-export DOCKER_IMAGE=takanoyuji/concafe-app:latest
-chmod +x scripts/build-and-push.sh
-./scripts/build-and-push.sh
-```
-
-**サーバー**
-```bash
-ssh ubuntu@219.94.244.166
-cd /opt/apps/concafe-app
-git pull origin main
-
-# 初回のみ .env にイメージ名を追加
-grep -q '^DOCKER_IMAGE=' .env || echo 'DOCKER_IMAGE=takanoyuji/concafe-app:latest' >> .env
-
-# 初回またはログインが必要な場合
-docker login
-
-docker compose down
-docker compose -f docker-compose.pull.yml pull
-docker compose -f docker-compose.pull.yml up -d --force-recreate
-```
-
-- **メリット**: 2回目以降は `pull` だけなのでサーバー側が軽い。転送もレジストリ経由で効率的  
-- **デメリット**: Docker Hub（または GHCR）のアカウントと、サーバーからの `docker login` が必要
-
----
-
-### 共通: サーバーで「ビルドしない」ようにする
-
-- 通常の `docker compose up` ではなく、**必ず `docker compose -f docker-compose.pull.yml` を使う**  
-- `deploy-to-server.sh` を「pull のみ」に変えたい場合は、中身を `docker compose -f docker-compose.pull.yml pull` と `up -d` に書き換える
-
-## 5. GA4 が反映されないときの確認
-
-**前提:** `NEXT_PUBLIC_GA_ID` は**ビルド時**に埋め込まれるため、`.env` に追加したあと**必ず再ビルド**が必要です。
-
-1. **本番サイトで GA が読み込まれているか確認**
-   - ブラウザで https://test.xing-lang.com を開く
-   - 開発者ツール（F12）→ **Network** タブ
-   - フィルタに `google` または `gtag` と入力
-   - ページを再読み込みし、`googletagmanager.com` や `google-analytics.com` へのリクエストが出ていれば GA は読み込まれている
-   - 何も出ない → 再ビルドしていないか、`NEXT_PUBLIC_GA_ID` がビルド時に渡っていない
-
-2. **サーバーで再ビルドしたか確認**
-   - `.env` に `NEXT_PUBLIC_GA_ID=G-B6LN2JP5N1` を追加しただけでは不十分
-   - `docker compose build --no-cache` してから `docker compose up -d --force-recreate` が必要
-
-3. **広告ブロックを切ってテスト**
-   - ブラウザの広告ブロックや Brave などは gtag をブロックすることがある
-
----
-
-## 6. ビルドが遅い原因を調べる（CPU・メモリ）
-
-サーバー上でビルド中に別ターミナルで以下を実行すると、原因の目安がつきます。
-
-**ビルド開始前にサーバー仕様を確認**
-```bash
-nproc          # CPU コア数
-free -h        # メモリ（合計・使用・空き）
-```
-
-**ビルド中にリソース監視（別ターミナルで）**
-```bash
-# 1秒ごとに CPU/メモリを表示（Ctrl+C で終了）
-watch -n 1 'echo "=== $(date) ==="; top -bn1 | head -20'
-```
-
-または
-```bash
-# Docker ビルド時の CPU/メモリ（コンテナ名は状況に応じて）
-docker stats --no-stream
-```
-
-**ビルド時間の計測**
-```bash
-cd /opt/apps/concafe-app
-time docker compose build --no-cache 2>&1 | tee build.log
-```
-終了後に `build.log` の最後で `real` の時間を確認。
-
-**リソースをファイルに記録（後から原因分析）**
-```bash
-# ターミナル1: 10秒ごとに CPU/メモリ/ロードを build-resources.log に追記
-chmod +x scripts/log-build-resources.sh
-./scripts/log-build-resources.sh
-
-# ターミナル2: ビルド実行
-docker compose build --no-cache
-```
-ビルド終了後、ターミナル1 で Ctrl+C。`build-resources.log` を開くと load/メモリの推移が分かる。
-
-**想定される原因**
-- **CPU コアが 1〜2 個** → Next.js のコンパイルが並列化しきれず、40分〜1時間以上かかりやすい
-- **メモリ 2GB 未満** → スワップが多発し、極端に遅くなる（`NODE_OPTIONS=--max-old-space-size=2048` で上限をかけてもスワップする場合はさらに遅い）
-- **スワップ多用** → `free -h` で Swap の "used" が大きいと、ディスク I/O がボトルネック
-
-根本対策は「4. ビルドが遅い場合」のとおり、**CI や手元 PC でビルドしてイメージを push → サーバーでは pull のみ**にすると、サーバーのスペックに依存しなくなります。
-
----
-
-## 7. 動作確認（メール）
-
-デプロイ後、以下でメール送信が正常かを確認してください。
-
-```bash
-# テストメール送信（宛先は自分のアドレスに変更）
-curl -X POST https://xing-lang.com/api/test-email \
-  -H "Content-Type: application/json" \
-  -d '{"email": "your@email.com"}'
-# → {"success":true} が返ればOK
-```
-
-- コンテナログで確認: `docker compose -f docker-compose.pull.yml logs -f app`
-  - 成功: `[EMAIL] 送信成功 message_id: xxx`
-  - 失敗: `[EMAIL] 送信失敗: ...` のエラーが出る
-- Resend ダッシュボード（resend.com → Emails）でも送信履歴が確認できます
-- 届いたメールの差出人が `星狼 <info@mail.xing-lang.com>` になっていることを確認
-
-### トラブルシュート
-
-| 症状 | 原因 | 対処 |
-|---|---|---|
-| `RESEND_API_KEY が未設定です` | サーバーの `.env` に `RESEND_API_KEY` がない | `.env` に追記して `docker compose up -d --force-recreate` |
-| `{"success":false,"error":"メール送信タイムアウト"}` | サーバーから `api.resend.com` に繋がらない | ファイアウォールでアウトバウンド 443 を許可する |
-| メール内リンクが `http://localhost:3000/...` | `NEXT_PUBLIC_BASE_URL` が未設定 | `.env` に `NEXT_PUBLIC_BASE_URL=https://xing-lang.com` を追加 |
-| `401 Unauthorized` | API キーが無効 | Resend ダッシュボードでキーを確認・再発行 |
+| 作業 | 手元 | サーバ |
+|------|------|--------|
+| .env | 事前に `NEXT_PUBLIC_BASE_URL` 等を設定 | `.env.production` に SMTP 等 |
+| ビルド | `docker compose up -d --build` | しない |
+| イメージ渡し | 方法A: push / 方法B: save → scp | 方法A: pull / 方法B: load |
+| 起動 | `docker compose up -d` | `docker compose -f docker-compose.pull.yml pull && docker compose -f docker-compose.pull.yml up -d` |
+| バックアップ | — | デプロイ前に `app_data` を tar で取得 |

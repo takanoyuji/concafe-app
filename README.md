@@ -20,6 +20,26 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Docker でローカルにビルド・起動
+
+手元（WSL またはローカル）でビルド・起動して動作確認してからサーバに反映する想定です。
+
+**事前に .env を用意する**
+
+- プロジェクトルートに `.env` を作成し、少なくとも **`NEXT_PUBLIC_BASE_URL`** を入れておく（例: `https://vliverlab.com`）。ビルド時にこの値が埋め込まれます。
+- 任意: `NEXT_PUBLIC_GA_ID`（GA4 測定 ID）、SMTP 関連、`JWT_SECRET` など。例は `.env.example` をコピーして編集。
+
+```bash
+cp .env.example .env
+# .env を編集して NEXT_PUBLIC_BASE_URL を設定
+
+docker compose up -d --build
+```
+
+起動後は [http://localhost:3000](http://localhost:3000) で確認。停止は `docker compose down`（データはボリューム `app_data` に残ります）。
+
+サーバへの反映手順（イメージの push/pull や save/load、バックアップ）は [DEPLOY.md](./DEPLOY.md) を参照。
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
@@ -29,8 +49,6 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## デプロイ
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+本番サーバへのデプロイは [DEPLOY.md](./DEPLOY.md) を参照（手元で Docker ビルド → イメージをサーバに渡す → サーバでは pull/load と up のみ）。

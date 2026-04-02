@@ -1,127 +1,300 @@
-@import "tailwindcss";
+@import "tailwindcss" source("../");
 
 @theme inline {
-  --color-night-950: #06040f;
-  --color-night-900: #0d0820;
-  --color-night-800: #160e3a;
-  --color-night-700: #1e1354;
-  --color-neon-purple: #c026d3;
-  --color-neon-violet: #7c3aed;
-  --color-neon-blue: #2563eb;
-  --color-neon-pink: #ec4899;
-  --color-neon-cyan: #06b6d4;
-  --color-star-400: #fbbf24;
-  --color-star-300: #fde68a;
-  --color-star-200: #fef3c7;
+  --color-bg-primary: #07060e;
+  --color-bg-secondary: #0d0b1a;
+  --color-holo-cyan: #00f0ff;
+  --color-holo-pink: #ff2d9b;
+  --color-holo-purple: #b44dff;
+  --color-holo-blue: #4d7dff;
+  --color-holo-yellow: #ffe14d;
 }
 
 :root {
-  --background: #06040f;
-  --foreground: #f0eafa;
+  --background: #07060e;
+  --foreground: #ffffff;
+  --surface: rgba(255, 255, 255, 0.04);
+  --holo-cyan: #00f0ff;
+  --holo-pink: #ff2d9b;
+  --holo-purple: #b44dff;
+  --holo-blue: #4d7dff;
+  --holo-yellow: #ffe14d;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.35);
 }
 
 html {
   scroll-behavior: smooth;
+  font-size: 16px; /* ベースフォントで文字の小ささを防止 */
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif;
+  font-size: 1rem;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.glass {
-  background: color-mix(in srgb, white 8%, transparent);
-  border: 1px solid color-mix(in srgb, white 15%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 1rem;
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ホログラフィックアニメーション
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+@keyframes holo-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
-.glass-dark {
-  background: color-mix(in srgb, #06040f 70%, transparent);
-  border: 1px solid color-mix(in srgb, #7c3aed 30%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 1rem;
+@keyframes float-particle {
+  0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.6; }
+  33% { transform: translateY(-20px) translateX(10px); opacity: 1; }
+  66% { transform: translateY(-10px) translateX(-5px); opacity: 0.8; }
 }
 
-.neon-glow-purple {
-  box-shadow: 0 0 10px color-mix(in srgb, #c026d3 70%, transparent),
-              0 0 30px color-mix(in srgb, #c026d3 40%, transparent),
-              0 0 60px color-mix(in srgb, #c026d3 20%, transparent);
+.holo-gradient {
+  background: linear-gradient(135deg, #00f0ff 0%, #b44dff 25%, #ff2d9b 50%, #ffe14d 75%, #00f0ff 100%);
+  background-size: 300% 300%;
+  animation: holo-shift 8s ease infinite;
 }
 
-.text-neon-glow {
-  text-shadow: 0 0 10px #c026d3, 0 0 25px #7c3aed, 0 0 50px #c026d3;
-}
-
-.text-star-glow {
-  text-shadow: 0 0 8px #fbbf24, 0 0 20px #fbbf24;
-}
-
-.star-bg {
-  background:
-    radial-gradient(ellipse at top, #160e3a 0%, #06040f 60%),
-    radial-gradient(ellipse at bottom right, #0d0820 0%, transparent 60%);
-}
-
-.gradient-text {
-  background: linear-gradient(135deg, #fbbf24 0%, #c026d3 50%, #7c3aed 100%);
+.holo-text {
+  background: linear-gradient(135deg, #00f0ff, #b44dff, #ff2d9b, #ffe14d);
+  background-size: 300% 300%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: holo-shift 6s ease infinite;
 }
 
+/* 後方互換エイリアス */
+.gradient-text {
+  background: linear-gradient(135deg, #00f0ff, #b44dff, #ff2d9b, #ffe14d);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: holo-shift 6s ease infinite;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   グラスモーフィズム
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  transition: all 0.3s ease-out;
+}
+
+.glass-card:hover {
+  border-color: rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.15);
+  transform: translateY(-8px);
+}
+
+/* 後方互換エイリアス */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  transition: all 0.3s ease-out;
+}
+
+.glass:hover {
+  border-color: rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.15);
+}
+
+.glass-dark {
+  background: rgba(7, 6, 14, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(180, 77, 255, 0.2);
+  border-radius: 16px;
+  transition: all 0.3s ease-out;
+}
+
+.glass-dark:hover {
+  border-color: rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.1);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   テキストエフェクト
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.neon-glow-purple {
+  box-shadow: 0 0 10px rgba(180, 77, 255, 0.7),
+              0 0 30px rgba(180, 77, 255, 0.4),
+              0 0 60px rgba(180, 77, 255, 0.2);
+}
+
+.neon-glow-cyan {
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.7),
+              0 0 30px rgba(0, 240, 255, 0.4),
+              0 0 60px rgba(0, 240, 255, 0.2);
+}
+
+.text-neon-glow {
+  text-shadow: 0 0 10px #00f0ff, 0 0 25px #b44dff, 0 0 50px #ff2d9b;
+}
+
+.text-star-glow {
+  text-shadow: 0 0 8px #00f0ff, 0 0 20px #b44dff;
+}
+
+.cast-name-pink {
+  background: linear-gradient(180deg, #ffb3d9 0%, #ff2d9b 45%, #c4006e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 1px 2px rgba(255,45,155,0.9)) drop-shadow(0 3px 8px rgba(255,45,155,0.5));
+}
+
+/* 後方互換 */
+.text-star-300 {
+  color: #00f0ff;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   背景
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.star-bg {
+  background:
+    radial-gradient(ellipse at top, #0d0b1a 0%, #07060e 60%),
+    radial-gradient(ellipse at bottom right, #0d0b1a 0%, transparent 60%);
+}
+
+/* セクション間ディバイダー */
+.holo-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #00f0ff, #b44dff, #ff2d9b, transparent);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+  opacity: 0.6;
+  margin: 0;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ボタン
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .btn-primary {
-  background: linear-gradient(135deg, #7c3aed, #c026d3);
+  background: linear-gradient(135deg, #00f0ff, #b44dff, #ff2d9b);
+  background-size: 200% 200%;
+  animation: holo-shift 4s ease infinite;
   color: white;
   padding: 0.75rem 2rem;
   border-radius: 9999px;
-  font-weight: 600;
-  transition: all 0.3s;
+  font-weight: 700;
+  font-family: "Rajdhani", sans-serif;
+  letter-spacing: 0.05em;
+  transition: all 0.3s ease-out;
   display: inline-block;
   text-align: center;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 20px color-mix(in srgb, #c026d3 60%, transparent);
+  transform: scale(1.05);
+  box-shadow: 0 0 25px rgba(0, 240, 255, 0.5), 0 0 50px rgba(180, 77, 255, 0.3);
 }
 
 .btn-secondary {
   background: transparent;
-  color: #f0eafa;
+  color: #ffffff;
   padding: 0.75rem 2rem;
   border-radius: 9999px;
   font-weight: 600;
-  border: 1px solid color-mix(in srgb, white 30%, transparent);
-  transition: all 0.3s;
+  font-family: "Rajdhani", sans-serif;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  transition: all 0.3s ease-out;
   display: inline-block;
   text-align: center;
 }
 
 .btn-secondary:hover {
-  border-color: #7c3aed;
-  background: color-mix(in srgb, #7c3aed 15%, transparent);
+  border-color: rgba(0, 240, 255, 0.7);
+  background: rgba(0, 240, 255, 0.08);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
 }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   フォーム
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .input-field {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: color-mix(in srgb, white 8%, transparent);
-  border: 1px solid color-mix(in srgb, white 20%, transparent);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 0.5rem;
-  color: #f0eafa;
+  color: #ffffff;
   outline: none;
   transition: border-color 0.2s;
 }
 
 .input-field:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #7c3aed 30%, transparent);
+  border-color: rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.2);
 }
 
 .input-field::placeholder {
-  color: color-mix(in srgb, #f0eafa 40%, transparent);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   セクションタイトル
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.section-title {
+  font-family: "Orbitron", sans-serif;
+  font-weight: 900;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  text-align: center;
+  margin-bottom: 2.5rem;
+  letter-spacing: 0.1em;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   フォントユーティリティ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.font-orbitron {
+  font-family: "Orbitron", sans-serif;
+}
+
+.font-rajdhani {
+  font-family: "Rajdhani", sans-serif;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ナビリンクホバー（ホログラフィック下線）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.nav-link-holo {
+  position: relative;
+}
+
+.nav-link-holo::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #00f0ff, #b44dff, #ff2d9b);
+  transition: all 0.3s ease-out;
+  transform: translateX(-50%);
+}
+
+.nav-link-holo:hover::after {
+  width: 100%;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ナビバー下ボーダー
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.nav-holo-border {
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, #00f0ff, #b44dff, #ff2d9b, transparent) 1;
 }

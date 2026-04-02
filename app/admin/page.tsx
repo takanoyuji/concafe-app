@@ -3,19 +3,30 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import NavBar from "@/components/ui/NavBar";
 
-interface Cast { id: string; name: string; bio: string; imageUrl: string; storeId: string; store: { name: string } }
-interface Store { id: string; slug: string; name: string }
+interface Cast { id: string; name: string; bio: string; imageUrl: string; twitterUrl?: string | null; youtubeUrl?: string | null; streamUrl?: string | null; remoteEnabled: boolean; unmannedEnabled: boolean }
 interface Title { id: string; name: string; threshold: number; order: number }
 interface Customer { id: string; email: string; emailVerified: boolean; balance: number; createdAt: string }
+interface MenuItem { id: string; category: string; name: string; price?: string | null; note?: string | null; badge?: string | null; order: number }
 
-type Tab = "cast" | "points" | "titles";
+type Tab = "cast" | "points" | "titles" | "menu";
 
-const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, twitterUrl: "", instagramUrl: "", tiktokUrl: "" };
+const MENU_CATEGORIES = [
+  { value: "soft_drink",      label: "ソフトドリンク" },
+  { value: "nonalc_cocktail", label: "ノンアルカクテル" },
+  { value: "food",            label: "フード" },
+  { value: "champagne",       label: "シャンパン" },
+  { value: "cast_drink",      label: "キャストメニュー" },
+];
+const MENU_EMPTY = { category: "food", name: "", price: "", note: "", badge: "", order: 0 };
+
+const CAST_EMPTY = { name: "", bio: "", imageUrl: "", order: 0, twitterUrl: "", youtubeUrl: "", streamUrl: "", remoteEnabled: false, unmannedEnabled: false };
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("cast");
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [menuForm, setMenuForm] = useState(MENU_EMPTY);
+  const [editingMenu, setEditingMenu] = useState<string | null>(null);
   const [casts, setCasts] = useState<Cast[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
   const [titles, setTitles] = useState<Title[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
@@ -41,21 +52,16 @@ export default function AdminPage() {
   };
 
   const fetchAll = useCallback(async () => {
-    const slugs = ["tokyo", "osaka", "nagoya"];
-    const [c, t, u, ...storeResults] = await Promise.all([
+    const [c, t, u, m] = await Promise.all([
       fetch("/api/cast").then(r => r.json()),
       fetch("/api/titles").then(r => r.json()),
       fetch("/api/admin/users").then(r => r.json()).catch(() => ({ users: [] })),
-      ...slugs.map(s => fetch(`/api/store/${s}`).then(r => r.json()).catch(() => ({ store: null }))),
+      fetch("/api/menu").then(r => r.json()).catch(() => ({ items: [] })),
     ]);
     setCasts(c.casts ?? []);
     setTitles(t.titles ?? []);
     setCustomers(u.users ?? []);
-    setStores(storeResults.map((r, i) => ({
-      id: r.store?.id ?? "",
-      slug: slugs[i],
-      name: r.store?.name ?? slugs[i],
-    })));
+    setMenuItems(m.items ?? []);
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -74,19 +80,16 @@ export default function AdminPage() {
 
   const saveCast = async () => {
     if (!castForm.name.trim()) { flash("キャスト名は必須です", true); return; }
-    if (!castForm.storeId) { flash("所属店舗を選択してください", true); return; }
     if (!castForm.bio.trim()) { flash("一言は必須です", true); return; }
     if (!castForm.imageUrl) { flash("キャスト画像をアップロードしてください", true); return; }
 
     const url = editingCast ? `/api/cast/${editingCast}` : "/api/cast";
     const method = editingCast ? "PUT" : "POST";
-    const storeId = stores.find(s => s.slug === castForm.storeId || s.id === castForm.storeId)?.id || castForm.storeId;
     const payload = {
       ...castForm,
-      storeId,
       twitterUrl: castForm.twitterUrl || null,
-      instagramUrl: castForm.instagramUrl || null,
-      tiktokUrl: castForm.tiktokUrl || null,
+      youtubeUrl: castForm.youtubeUrl || null,
+      streamUrl: castForm.streamUrl || null,
     };
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (res.ok) { flash("保存しました"); setCastForm(CAST_EMPTY); setEditingCast(null); fetchAll(); }
@@ -103,14 +106,15 @@ export default function AdminPage() {
     fetchAll();
   };
 
-  const editCast = (cast: Cast & { twitterUrl?: string | null; instagramUrl?: string | null; tiktokUrl?: string | null }) => {
-    const storeSlug = stores.find(s => s.name === cast.store.name)?.slug ?? "";
+  const editCast = (cast: Cast) => {
     setCastForm({
       name: cast.name, bio: cast.bio, imageUrl: cast.imageUrl,
-      storeId: storeSlug, order: 0,
+      order: 0,
       twitterUrl: cast.twitterUrl ?? "",
-      instagramUrl: cast.instagramUrl ?? "",
-      tiktokUrl: cast.tiktokUrl ?? "",
+      youtubeUrl: cast.youtubeUrl ?? "",
+      streamUrl: cast.streamUrl ?? "",
+      remoteEnabled: cast.remoteEnabled,
+      unmannedEnabled: cast.unmannedEnabled,
     });
     setEditingCast(cast.id);
     setTab("cast");
@@ -148,10 +152,33 @@ export default function AdminPage() {
     fetchAll();
   };
 
+  // Menu CRUD
+  const saveMenu = async () => {
+    if (!menuForm.name.trim()) { flash("名前は必須です", true); return; }
+    const url = editingMenu ? `/api/menu/${editingMenu}` : "/api/menu";
+    const method = editingMenu ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(menuForm) });
+    if (res.ok) { flash("保存しました"); setMenuForm(MENU_EMPTY); setEditingMenu(null); fetchAll(); }
+    else { const d = await res.json(); flash(d.error ?? "エラー", true); }
+  };
+
+  const deleteMenu = async (id: string) => {
+    if (!confirm("削除しますか？")) return;
+    await fetch(`/api/menu/${id}`, { method: "DELETE" });
+    fetchAll();
+  };
+
+  const editMenu = (item: MenuItem) => {
+    setMenuForm({ category: item.category, name: item.name, price: item.price ?? "", note: item.note ?? "", badge: item.badge ?? "", order: item.order });
+    setEditingMenu(item.id);
+    setTab("menu");
+  };
+
   const TABS: { key: Tab; label: string }[] = [
-    { key: "cast", label: "🐺 キャスト" },
+    { key: "cast",   label: "🐺 キャスト" },
     { key: "points", label: "⭐ ポイント付与" },
     { key: "titles", label: "🏆 称号マスタ" },
+    { key: "menu",   label: "🍹 メニュー" },
   ];
 
   return (
@@ -193,13 +220,6 @@ export default function AdminPage() {
                   <label className="text-xs text-white/60 block mb-1">名前 <span className="text-neon-pink">*</span></label>
                   <input className="input-field" value={castForm.name} onChange={e => setCastForm(p => ({ ...p, name: e.target.value }))} placeholder="キャスト名" />
                 </div>
-                <div>
-                  <label className="text-xs text-white/60 block mb-1">所属店舗 <span className="text-neon-pink">*</span></label>
-                  <select className="input-field" value={castForm.storeId} onChange={e => setCastForm(p => ({ ...p, storeId: e.target.value }))}>
-                    <option value="">選択してください</option>
-                    {stores.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)}
-                  </select>
-                </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs text-white/60 block mb-1">一言 <span className="text-neon-pink">*</span></label>
                   <textarea className="input-field min-h-[80px]" value={castForm.bio} onChange={e => setCastForm(p => ({ ...p, bio: e.target.value }))} placeholder="一言を入力（例：みんなを笑顔にします！）" />
@@ -230,12 +250,22 @@ export default function AdminPage() {
                   <input className="input-field" value={castForm.twitterUrl} onChange={e => setCastForm(p => ({ ...p, twitterUrl: e.target.value }))} placeholder="https://x.com/@..." />
                 </div>
                 <div>
-                  <label className="text-xs text-white/60 block mb-1">Instagram URL</label>
-                  <input className="input-field" value={castForm.instagramUrl} onChange={e => setCastForm(p => ({ ...p, instagramUrl: e.target.value }))} placeholder="https://instagram.com/..." />
+                  <label className="text-xs text-white/60 block mb-1">YouTube URL</label>
+                  <input className="input-field" value={castForm.youtubeUrl} onChange={e => setCastForm(p => ({ ...p, youtubeUrl: e.target.value }))} placeholder="https://youtube.com/@..." />
                 </div>
                 <div>
-                  <label className="text-xs text-white/60 block mb-1">TikTok URL</label>
-                  <input className="input-field" value={castForm.tiktokUrl} onChange={e => setCastForm(p => ({ ...p, tiktokUrl: e.target.value }))} placeholder="https://tiktok.com/@..." />
+                  <label className="text-xs text-white/60 block mb-1">個別配信先 URL</label>
+                  <input className="input-field" value={castForm.streamUrl} onChange={e => setCastForm(p => ({ ...p, streamUrl: e.target.value }))} placeholder="https://twitch.tv/... など" />
+                </div>
+                <div className="sm:col-span-2 flex gap-6 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 accent-violet-500" checked={castForm.remoteEnabled} onChange={e => setCastForm(p => ({ ...p, remoteEnabled: e.target.checked }))} />
+                    <span className="text-sm text-white/80">遠隔対応キャスト</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 accent-violet-500" checked={castForm.unmannedEnabled} onChange={e => setCastForm(p => ({ ...p, unmannedEnabled: e.target.checked }))} />
+                    <span className="text-sm text-white/80">無人営業対応キャスト</span>
+                  </label>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -261,7 +291,6 @@ export default function AdminPage() {
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-white truncate">{cast.name}</div>
-                    <div className="text-xs text-white/40">{cast.store.name}</div>
                   </div>
                   <button onClick={() => editCast(cast)} className="text-neon-violet text-sm hover:text-neon-purple flex-shrink-0">編集</button>
                   <button onClick={() => deleteCast(cast.id)} className="text-neon-pink text-sm hover:text-red-400 flex-shrink-0">削除</button>
@@ -385,6 +414,68 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+        {/* メニュー管理 */}
+        {tab === "menu" && (
+          <div className="space-y-6">
+            <div className="glass p-6 space-y-4">
+              <h2 className="font-bold text-star-300">{editingMenu ? "メニュー編集" : "メニュー追加"}</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">カテゴリ</label>
+                  <select className="input-field" value={menuForm.category} onChange={e => setMenuForm(p => ({ ...p, category: e.target.value }))}>
+                    {MENU_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">名前 <span className="text-neon-pink">*</span></label>
+                  <input className="input-field" value={menuForm.name} onChange={e => setMenuForm(p => ({ ...p, name: e.target.value }))} placeholder="例: バニラアイス" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">価格</label>
+                  <input className="input-field" value={menuForm.price} onChange={e => setMenuForm(p => ({ ...p, price: e.target.value }))} placeholder="例: ¥500" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">備考</label>
+                  <input className="input-field" value={menuForm.note} onChange={e => setMenuForm(p => ({ ...p, note: e.target.value }))} placeholder="例: 匂いの弱いもの" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">バッジ <span className="text-white/30 text-xs">（シャンパンのVLL ORIGINALは「original」と入力）</span></label>
+                  <input className="input-field" value={menuForm.badge} onChange={e => setMenuForm(p => ({ ...p, badge: e.target.value }))} placeholder="例: チェキつき" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/60 block mb-1">表示順</label>
+                  <input type="number" className="input-field" value={menuForm.order} onChange={e => setMenuForm(p => ({ ...p, order: Number(e.target.value) }))} />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={saveMenu} className="btn-primary text-sm">{editingMenu ? "更新" : "追加"}</button>
+                {editingMenu && <button onClick={() => { setEditingMenu(null); setMenuForm(MENU_EMPTY); }} className="btn-secondary text-sm">キャンセル</button>}
+              </div>
+            </div>
+
+            {MENU_CATEGORIES.map(cat => {
+              const catItems = menuItems.filter(i => i.category === cat.value).sort((a, b) => a.order - b.order);
+              if (catItems.length === 0) return null;
+              return (
+                <div key={cat.value} className="space-y-2">
+                  <h3 className="text-sm font-bold text-white/60 px-1">{cat.label}</h3>
+                  {catItems.map(item => (
+                    <div key={item.id} className="glass-dark p-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-white text-sm font-medium">{item.name}</span>
+                        {item.price && <span className="ml-2 text-xs text-white/50">{item.price}</span>}
+                        {item.note && <span className="ml-2 text-xs text-white/40">({item.note})</span>}
+                        {item.badge && <span className="ml-2 text-xs text-neon-pink">[{item.badge}]</span>}
+                      </div>
+                      <button onClick={() => editMenu(item)} className="text-neon-violet text-sm hover:text-neon-purple flex-shrink-0">編集</button>
+                      <button onClick={() => deleteMenu(item.id)} className="text-neon-pink text-sm hover:text-red-400 flex-shrink-0">削除</button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </main>

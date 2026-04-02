@@ -13,11 +13,15 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [unverified, setUnverified] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setUnverified(false);
+    setResendSent(false);
 
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -30,6 +34,7 @@ function LoginForm() {
 
     if (!res.ok) {
       setError(data.error ?? "ログインに失敗しました");
+      if (res.status === 403) setUnverified(true);
       return;
     }
 
@@ -42,6 +47,16 @@ function LoginForm() {
     }
   };
 
+  const handleResend = async () => {
+    setResendSent(false);
+    await fetch("/api/auth/resend-verification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    setResendSent(true);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="glass p-6 space-y-4">
       {verified && (
@@ -50,8 +65,21 @@ function LoginForm() {
         </div>
       )}
       {error && (
-        <div className="text-neon-pink text-sm text-center p-3 bg-pink-950/30 rounded-lg">
-          {error}
+        <div className="text-neon-pink text-sm text-center p-3 bg-pink-950/30 rounded-lg space-y-2">
+          <p>{error}</p>
+          {unverified && (
+            resendSent ? (
+              <p className="text-green-400">認証メールを再送しました。受信ボックスをご確認ください。</p>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResend}
+                className="underline text-white/70 hover:text-white"
+              >
+                認証メールを再送する
+              </button>
+            )
+          )}
         </div>
       )}
       <div>
@@ -97,7 +125,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Link href="/">
-            <img src={logoUrl} alt="星狼 ロゴ" width={120} height={60} className="object-contain mx-auto mb-4 w-[120px] h-[60px]" />
+            <img src={logoUrl} alt="VLiverLab ロゴ" width={120} height={60} className="object-contain mx-auto mb-4 w-[120px] h-[60px]" />
           </Link>
           <h1 className="text-2xl font-black gradient-text">ログイン</h1>
         </div>

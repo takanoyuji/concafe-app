@@ -5,8 +5,7 @@ import { CastSchema } from "@/lib/validations";
 
 export async function GET() {
   const casts = await prisma.cast.findMany({
-    include: { store: { select: { id: true, name: true, slug: true } } },
-    orderBy: [{ storeId: "asc" }, { order: "asc" }],
+    orderBy: { order: "asc" },
   });
   return NextResponse.json({ casts });
 }

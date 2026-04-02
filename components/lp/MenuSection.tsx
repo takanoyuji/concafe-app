@@ -1,132 +1,303 @@
 "use client";
-import { useState, useRef } from "react";
-import Image from "next/image";
-import Modal from "@/components/ui/Modal";
+import { useState, useEffect } from "react";
 
-const MENU_IMAGES = [
-  { src: "/images/menu/system.jpg",           alt: "システム・料金案内" },
-  { src: "/images/menu/xinglang_menu00.webp", alt: "星狼メニュー表紙" },
-  { src: "/images/menu/xinglang_menu01.webp", alt: "星狼メニュー 1ページ" },
-  { src: "/images/menu/xinglang_menu02.webp", alt: "星狼メニュー 2ページ" },
-  { src: "/images/menu/xinglang_menu03.webp", alt: "星狼メニュー 3ページ" },
-  { src: "/images/menu/xinglang_menu04.webp", alt: "星狼メニュー 4ページ" },
-  { src: "/images/menu/menu1.jpg",            alt: "フードメニュー 1" },
-  { src: "/images/menu/menu2.jpg",            alt: "フードメニュー 2" },
-  { src: "/images/menu/menu3.jpg",            alt: "フードメニュー 3" },
-  { src: "/images/menu/menu4.jpg",            alt: "フードメニュー 4" },
-  { src: "/images/menu/S__95674396.jpg",      alt: "限定メニュー" },
+type DrinkItem = string | { name: string; extra: string };
+interface MenuItem { id: string; category: string; name: string; price?: string | null; note?: string | null; badge?: string | null; order: number }
+
+/* ─── フォールバック（DB未マイグレーション時・API失敗時） ─── */
+const FB_SOFT_DRINKS = [
+  "ジンジャエール","ジャスミンティー","紅茶","緑茶","烏龍茶",
+  "コーヒー","カフェオレ","オレンジジュース","グレープフルーツ","パインジュース","ココア",
+];
+const FB_NONALC = [
+  "いちごミルク","ストロベリーフィズ","シャーリーテンプル","レモンジンジャー",
+  "ジンジャーミモザ","シンデレラ","フロリダ","ブルーソーダ",
+];
+const FB_FOODS = [
+  { name: "バニラアイス",                    price: "¥500",   note: undefined },
+  { name: "たこ焼き",                        price: "¥800",   note: undefined },
+  { name: "ポテト",                          price: "¥800",   note: undefined },
+  { name: "生ハム",                          price: "¥1,000", note: undefined },
+  { name: "落書きオムライス（チャーハン）",   price: "¥1,500", note: undefined },
+  { name: "落書きオムライス（ボロネーゼ）",   price: "¥1,500", note: undefined },
+  { name: "落書きオムライス（カルボナーラ）", price: "¥1,500", note: undefined },
+  { name: "持ち込み料",                      price: "¥1,000", note: "匂いの弱いもの" },
+];
+const FB_CHAMPAGNES = [
+  { name: "カフェパ",               price: "¥8,000",   price_num: 8000,   original: false },
+  { name: "アスティ",               price: "¥9,000",   price_num: 9000,   original: false },
+  { name: "MAVAM",                  price: "¥22,000",  price_num: 22000,  original: false },
+  { name: "モエ（白）",             price: "¥30,000",  price_num: 30000,  original: false },
+  { name: "モエ（NIR）",            price: "¥55,000",  price_num: 55000,  original: false },
+  { name: "モエ（アイス）",         price: "¥70,000",  price_num: 70000,  original: false },
+  { name: "ドンペリ",               price: "¥150,000", price_num: 150000, original: false },
+  { name: "エンジェル",             price: "¥198,000", price_num: 198000, original: false },
+  { name: "アルマンド（ゴールド）", price: "¥200,000", price_num: 200000, original: false },
+  { name: "オリジナルシャンパン",   price: "¥12,000",  price_num: 12000,  original: true  },
+];
+const FB_CAST = [
+  { name: "キャスト用ドリンク", price: "¥1,100", badge: null },
+  { name: "オリジナルカクテル", price: "¥1,500", badge: "チェキつき" },
 ];
 
+/* ─── カクテルベース（固定） ─── */
+const COCKTAIL_BASES: { id: string; name: string; color: string; items: DrinkItem[] }[] = [
+  { id: "cassis",   name: "CASSIS",      color: "#b44dff",
+    items: ["ソーダ","オレンジ","グレフル","アップル","パイン","ウーロン",{ name:"ミルク", extra:"+100" }] },
+  { id: "campari",  name: "CAMPARI",     color: "#ff2d9b",
+    items: ["ソーダ","オレンジ","グレフル","アップル","パイン","ジンジャー"] },
+  { id: "litchi",   name: "LITCHI",      color: "#ff6fd8",
+    items: ["ソーダ","オレンジ","グレフル","アップル","パイン","ウーロン","ジンジャー"] },
+  { id: "malibu",   name: "MALIBU",      color: "#00f0ff",
+    items: ["ソーダ","オレンジ","グレフル","アップル","パイン","ジンジャー",{ name:"ミルク", extra:"+100" }] },
+  { id: "peche",    name: "PECHE",       color: "#ffaa4d",
+    items: ["ソーダ","オレンジ","アップル","パイン","ウーロン","ジンジャー",{ name:"ミルク", extra:"+100" }] },
+  { id: "passoa",   name: "PASSOA",      color: "#ff4d7d",
+    items: ["ソーダ","オレンジ","グレフル","アップル","パイン","ジンジャー"] },
+  { id: "amaretto", name: "AMARETTO",    color: "#ffe14d",
+    items: ["ソーダ","オレンジ","ウーロン","ジンジャー",{ name:"ミルク", extra:"+100" }] },
+  { id: "jin",      name: "JIN",         color: "#4d7dff",
+    items: ["ジントニック","ジンバック","ジンフィズ","オレンジブロッサム"] },
+  { id: "vodka",    name: "VODKA",       color: "#aee8ff",
+    items: ["スクリュードライバー","モスコミュール","ソルティドッグ","ウォッカトニック"] },
+  { id: "other",    name: "OTHER",       color: "#6dff9e",
+    items: ["レモンサワー","緑茶ハイ","烏龍ハイ","ウーロンハイ","ジャスミンハイ",{ name:"アサヒビール", extra:"+100" }] },
+  { id: "shot",     name: "SHOT",        color: "#ff6b6b",
+    items: ["テキーラ","テキーラローズ",{ name:"クライナー", extra:"+100" }] },
+  { id: "shot-sp",  name: "SHOT (特殊)", color: "#ffe14d",
+    items: ["テキーラ観覧車 → ASK","クライナータワー → ASK"] },
+];
+
+const TABS = ["ノンアル＆フード", "カクテル", "シャンパン", "キャスト"] as const;
+type TabType = typeof TABS[number];
+
 export default function MenuSection() {
-  const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState<(typeof MENU_IMAGES)[0] | null>(null);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
+  const [activeTab, setActiveTab] = useState<TabType>("ノンアル＆フード");
+  const [openBases, setOpenBases] = useState<string[]>(["cassis"]);
+  const [dbItems, setDbItems] = useState<MenuItem[]>([]);
 
-  const prev = () => setCurrent(i => (i - 1 + MENU_IMAGES.length) % MENU_IMAGES.length);
-  const next = () => setCurrent(i => (i + 1) % MENU_IMAGES.length);
+  useEffect(() => {
+    fetch("/api/menu")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.items?.length) setDbItems(d.items); })
+      .catch(() => {});
+  }, []);
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  };
+  const by = (cat: string) => dbItems.filter(i => i.category === cat).sort((a, b) => a.order - b.order);
+  const hasDb = dbItems.length > 0;
 
-  const onTouchEnd = (e: React.TouchEvent) => {
-    const dx = touchStartX.current - e.changedTouches[0].clientX;
-    const dy = Math.abs(touchStartY.current - e.changedTouches[0].clientY);
-    // 水平方向の動きが垂直より大きい場合のみスワイプとして判定
-    if (Math.abs(dx) > 40 && Math.abs(dx) > dy) {
-      if (dx > 0) next(); else prev();
-    }
-  };
+  const softDrinks = hasDb ? by("soft_drink").map(i => i.name) : FB_SOFT_DRINKS;
+  const nonalc     = hasDb ? by("nonalc_cocktail").map(i => i.name) : FB_NONALC;
+  const foods      = hasDb
+    ? by("food").map(i => ({ name: i.name, price: i.price ?? "", note: i.note ?? undefined }))
+    : FB_FOODS;
+  const champagnes = hasDb
+    ? by("champagne").map(i => ({ name: i.name, price: i.price ?? "", price_num: parseInt((i.price ?? "0").replace(/[^0-9]/g, ""), 10), original: i.badge === "original" }))
+    : FB_CHAMPAGNES;
+  const castMenu   = hasDb
+    ? by("cast_drink").map(i => ({ name: i.name, price: i.price ?? "", badge: i.badge }))
+    : FB_CAST;
 
-  const img = MENU_IMAGES[current];
+  const toggleBase = (id: string) =>
+    setOpenBases(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   return (
-    <section id="sec03" className="py-20 px-4 star-bg">
-      <h2 className="section-title gradient-text text-neon-glow">
-        SYSTEM・MENU
-      </h2>
+    <section id="menu" className="py-24 px-4 star-bg">
+      <div className="holo-divider" />
+      <div className="max-w-3xl mx-auto pt-12 space-y-8">
 
-      <div data-reveal className="max-w-sm mx-auto relative select-none">
-        {/* 画像 */}
-        <div
-          className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/10 cursor-pointer"
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-          onClick={() => setSelected(img)}
-          aria-label={`${img.alt}を拡大表示`}
-        >
-          <Image
-            src={img.src}
-            alt={img.alt}
-            fill
-            sizes="(max-width: 640px) 90vw, 384px"
-            className="object-cover"
-            priority={current === 0}
-          />
-          {/* タップヒント */}
-          <div className="absolute inset-0 flex items-end justify-center pb-4 pointer-events-none">
-            <span className="glass text-xs text-white/70 px-3 py-1 opacity-0 group-hover:opacity-100">
-              タップで拡大
-            </span>
-          </div>
+        <h2 className="section-title holo-text text-center">MENU</h2>
+
+        {/* タブバー */}
+        <div className="flex gap-0 border-b border-white/10 overflow-x-auto">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="relative px-4 py-3 text-sm font-rajdhani font-semibold tracking-wide whitespace-nowrap transition-colors duration-200"
+              style={{ color: activeTab === tab ? "#ffffff" : "rgba(255,255,255,0.45)" }}
+            >
+              {tab}
+              {activeTab === tab && (
+                <span
+                  className="absolute bottom-0 left-0 right-0 h-[3px]"
+                  style={{ background: "linear-gradient(90deg, #00f0ff, #b44dff, #ff2d9b)" }}
+                />
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* 前へ / 次へ ボタン */}
-        <button
-          onClick={prev}
-          className="absolute left-2 top-1/2 -translate-y-1/2 glass w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:border-neon-violet transition-all"
-          aria-label="前の画像"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
-        <button
-          onClick={next}
-          className="absolute right-2 top-1/2 -translate-y-1/2 glass w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:border-neon-violet transition-all"
-          aria-label="次の画像"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
+        {/* コンテンツ */}
+        <div className="menu-fade" key={activeTab}>
 
-        {/* ページカウンター */}
-        <p className="text-center text-white/40 text-xs mt-3">
-          {current + 1} / {MENU_IMAGES.length}
-        </p>
+          {activeTab === "ノンアル＆フード" && (
+            <div className="space-y-8">
+              <div>
+                <SectionLabel>ソフトドリンク <PriceNote>各 ¥800</PriceNote></SectionLabel>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {softDrinks.map((d) => <DrinkTag key={d}>{d}</DrinkTag>)}
+                </div>
+              </div>
+              <div>
+                <SectionLabel>ノンアルコールカクテル <PriceNote>各 ¥900</PriceNote></SectionLabel>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {nonalc.map((d) => <DrinkTag key={d}>{d}</DrinkTag>)}
+                </div>
+              </div>
+              <div>
+                <SectionLabel>フード</SectionLabel>
+                <div className="grid sm:grid-cols-2 gap-2 mt-3">
+                  {foods.map((f) => (
+                    <div key={f.name} className="glass-card px-4 py-3 flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-white text-sm">{f.name}</span>
+                        {f.note && <span className="text-xs ml-1.5" style={{ color: "var(--text-muted)" }}>({f.note})</span>}
+                      </div>
+                      <span className="font-orbitron font-bold text-sm holo-text flex-shrink-0">{f.price}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* ドットナビ */}
-        <div className="flex justify-center gap-1.5 mt-2 flex-wrap">
-          {MENU_IMAGES.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrent(i)}
-              className={`rounded-full transition-all duration-300 ${
-                i === current
-                  ? "w-5 h-2 bg-neon-purple"
-                  : "w-2 h-2 bg-white/20 hover:bg-white/40"
-              }`}
-              aria-label={`${i + 1}枚目に移動`}
-            />
-          ))}
+          {activeTab === "カクテル" && (
+            <div className="space-y-2">
+              <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>各 ¥900（特記除く）</p>
+              {COCKTAIL_BASES.map((base) => (
+                <div key={base.id} className="glass-card overflow-hidden">
+                  <button
+                    onClick={() => toggleBase(base.id)}
+                    className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ background: base.color, boxShadow: `0 0 6px ${base.color}` }} aria-hidden="true" />
+                      <span className="font-rajdhani font-semibold text-base tracking-wider" style={{ color: base.color }}>
+                        {base.name}
+                      </span>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      className="flex-shrink-0 transition-transform duration-300"
+                      style={{ color: "rgba(255,255,255,0.4)", transform: openBases.includes(base.id) ? "rotate(180deg)" : "rotate(0deg)" }}>
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {openBases.includes(base.id) && (
+                    <div className="px-5 pb-4 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+                      {base.id === "shot-sp" && (
+                        <p className="w-full text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+                          ※価格はキャストへお問い合わせください（ASK）
+                        </p>
+                      )}
+                      {base.items.map((item) =>
+                        typeof item === "string" ? (
+                          <DrinkTag key={item}>{item}</DrinkTag>
+                        ) : (
+                          <span key={item.name}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-white"
+                            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                            {item.name}
+                            <span style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>{item.extra}</span>
+                          </span>
+                        )
+                      )}
+                      {base.id === "shot" && (
+                        <p className="w-full text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                          ※キャストへのショット +¥500
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === "シャンパン" && (
+            <div className="relative space-y-3">
+              <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="champagne-bubble absolute rounded-full"
+                    style={{ left: `${8 + i * 12}%`, bottom: 0, width: `${6 + (i % 3) * 4}px`, height: `${6 + (i % 3) * 4}px`,
+                      background: "rgba(255,255,255,0.18)", animationDuration: `${5 + (i % 5) * 2.4}s`, animationDelay: `${i * 0.9}s` }} />
+                ))}
+              </div>
+              {champagnes.map((ch) => {
+                const isPremium = ch.price_num >= 150000;
+                return (
+                  <div key={ch.name} className="glass-card px-5 py-4 flex items-center justify-between gap-3"
+                    style={isPremium ? { borderColor: "rgba(255,225,77,0.35)", boxShadow: "0 0 20px rgba(255,225,77,0.08)" } : undefined}>
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      {isPremium && <span aria-hidden="true">✨</span>}
+                      <span className="text-white font-semibold text-sm">{ch.name}</span>
+                      {ch.original && (
+                        <span className="text-xs font-rajdhani font-bold px-2 py-0.5 rounded-full holo-text flex-shrink-0"
+                          style={{ border: "1px solid rgba(0,240,255,0.4)", background: "rgba(0,240,255,0.06)" }}>
+                          VLL ORIGINAL
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-orbitron font-bold text-base flex-shrink-0">
+                      {isPremium
+                        ? <span style={{ color: "#ffe14d" }}>{ch.price}</span>
+                        : <span className="holo-text">{ch.price}</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {activeTab === "キャスト" && (
+            <div className="space-y-3 max-w-sm mx-auto">
+              {castMenu.map((item) => (
+                <div key={item.name} className="glass-card px-6 py-5 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-white font-semibold">{item.name}</span>
+                    {item.badge && item.badge !== "original" && (
+                      <span className="text-xs font-rajdhani font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+                        style={{ background: "rgba(255,45,155,0.15)", border: "1px solid rgba(255,45,155,0.5)", color: "#ff2d9b" }}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-orbitron font-bold text-lg holo-text flex-shrink-0">{item.price}</span>
+                </div>
+              ))}
+              <p className="text-xs text-center mt-4" style={{ color: "var(--text-muted)" }}>※全て +tax 10%</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* モーダル */}
-      {selected && (
-        <Modal onClose={() => setSelected(null)}>
-          <Image
-            src={selected.src}
-            alt={selected.alt}
-            width={800}
-            height={1067}
-            className="w-full h-auto max-h-[85vh] object-contain rounded-xl"
-          />
-        </Modal>
-      )}
+      <style>{`
+        @keyframes menu-fade-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .menu-fade { animation: menu-fade-in 0.3s ease-out both; }
+        @keyframes bubble-rise {
+          0%   { transform: translateY(0) scale(1);    opacity: 0; }
+          10%  { opacity: 0.15; }
+          90%  { opacity: 0.1; }
+          100% { transform: translateY(-400px) scale(0.4); opacity: 0; }
+        }
+        .champagne-bubble { animation: bubble-rise linear infinite; }
+      `}</style>
     </section>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <h3 className="font-rajdhani font-semibold text-sm tracking-widest uppercase" style={{ color: "var(--holo-cyan)" }}>{children}</h3>;
+}
+function PriceNote({ children }: { children: React.ReactNode }) {
+  return <span className="text-xs font-rajdhani ml-2" style={{ color: "var(--text-muted)" }}>{children}</span>;
+}
+function DrinkTag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-block px-3 py-1.5 rounded-full text-xs text-white"
+      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
+      {children}
+    </span>
   );
 }

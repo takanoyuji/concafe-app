@@ -2,8 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import CastLink from "@/components/CastLink";
-import MapLink from "@/components/MapLink";
+import CastClickLink from "@/components/analytics/CastClickLink";
 import { getMonthlyRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
 
@@ -13,29 +12,24 @@ interface Props {
 
 const STORE_DESC: Record<string, string> = {
   tokyo:
-    "池袋駅東口から徒歩5分。ネオン輝く夜の空間で、星狼の男装キャストが温かくお迎えします。",
+    "池袋駅東口から徒歩5分。ホログラフィックな近未来空間で、VLiverLabのVTuberキャストが温かくお迎えします。",
   osaka:
-    "日本橋でんでんタウン近く。関西唯一の星狼店舗として、大阪の夜をより一層特別に彩ります。",
-  nagoya:
-    "名古屋栄の中心地に位置する星狼名古屋店。洗練された空間でキャストとの時間をお楽しみください。",
+    "大阪梅田の中心地。VLiverLab関西旗艦店として、バーチャルとリアルが交差する特別な夜を体験できます。",
 };
 
 export const dynamic = "force-dynamic";
 
 export async function generateStaticParams() {
-  return [{ slug: "tokyo" }, { slug: "osaka" }, { slug: "nagoya" }];
+  return [{ slug: "osaka" }, { slug: "tokyo" }];
 }
 
 export default async function StorePage({ params }: Props) {
   const { slug } = await params;
-  const store = await prisma.store.findUnique({
-    where: { slug },
-    include: { casts: { orderBy: { order: "asc" } } },
-  });
+  const store = await prisma.store.findUnique({ where: { slug } });
 
   if (!store) notFound();
 
-  const ranking = await getMonthlyRanking(store.id);
+  const ranking = await getMonthlyRanking();
   const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(store.mapQuery)}&output=embed&hl=ja`;
 
   return (
@@ -67,49 +61,11 @@ export default async function StorePage({ params }: Props) {
             referrerPolicy="no-referrer-when-downgrade"
             title={`${store.name}の地図`}
           />
-          <MapLink
-            href={`https://maps.google.com/maps?q=${encodeURIComponent(store.mapQuery)}`}
-            locationName={store.name}
-            className="block text-center py-2 text-sm text-neon-purple hover:text-neon-violet transition-colors bg-white/5"
-          >
-            地図をGoogleマップで開く →
-          </MapLink>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
-          {/* キャスト一覧 */}
-          <section>
-            <h2 className="text-xl font-bold text-star-300 text-star-glow mb-4">
-              🐺 在籍キャスト
-            </h2>
-            {store.casts.length > 0 ? (
-              <div className="space-y-3">
-                {store.casts.map((cast) => (
-                  <CastLink
-                    key={cast.id}
-                    href={`/cast/${cast.id}`}
-                    castName={cast.name}
-                    className="glass-dark flex items-center gap-4 p-4 hover:border-neon-violet transition-all"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-neon-violet to-neon-purple flex items-center justify-center text-xl flex-shrink-0">
-                      🐺
-                    </div>
-                    <div>
-                      <div className="font-bold text-white">{cast.name}</div>
-                      <div className="text-xs text-white/50 line-clamp-1">{cast.bio}</div>
-                    </div>
-                  </CastLink>
-                ))}
-              </div>
-            ) : (
-              <div className="glass p-6 text-white/50 text-center">
-                キャスト情報は近日公開予定です
-              </div>
-            )}
-          </section>
-
           {/* 店舗別ランキング */}
-          <section>
+          <section className="md:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-star-300 text-star-glow">
                 ⭐ 月間ランキング
@@ -121,7 +77,7 @@ export default async function StorePage({ params }: Props) {
             {ranking.length > 0 ? (
               <div className="space-y-3">
                 {ranking.map((cast, i) => (
-                  <CastLink
+                  <CastClickLink
                     key={cast.id}
                     href={`/cast/${cast.id}`}
                     castName={cast.name}
@@ -149,7 +105,7 @@ export default async function StorePage({ params }: Props) {
                     <div className="text-neon-purple font-bold text-sm">
                       {cast.totalPoints.toLocaleString()} pt
                     </div>
-                  </CastLink>
+                  </CastClickLink>
                 ))}
               </div>
             ) : (

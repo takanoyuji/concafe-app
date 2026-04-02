@@ -8,12 +8,12 @@ import nodemailer from "nodemailer";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const to = typeof body.to === "string" ? body.to : process.env.SMTP_FROM ?? "noreply@test.xing-lang.com";
+    const to = typeof body.to === "string" ? body.to : process.env.SMTP_FROM ?? "noreply@test.vliverlab.com";
 
     const host = process.env.SMTP_HOST;
     const user = process.env.SMTP_USER;
     const pass = process.env.SMTP_PASS;
-    const from = process.env.SMTP_FROM ?? "noreply@test.xing-lang.com";
+    const from = process.env.SMTP_FROM ?? "noreply@test.vliverlab.com";
 
     if (!host || !user || !pass) {
       return NextResponse.json({
@@ -35,9 +35,9 @@ export async function POST(req: NextRequest) {
     });
 
     await transport.sendMail({
-      from: `星狼 <${from}>`,
+      from: `VLiverLab <${from}>`,
       to,
-      subject: "【星狼】テスト送信",
+      subject: "【VLiverLab】テスト送信",
       text: "これはテストメールです。届いていれば送信設定は正常です。",
     });
 

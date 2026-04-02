@@ -1,17 +1,27 @@
+# 手元（WSL/ローカル）でビルド・起動する用
+# 事前に .env を用意し、NEXT_PUBLIC_BASE_URL 等を設定すること（README / DEPLOY.md 参照）
+
+name: vliverlab-hp
+
 services:
   app:
     build:
       context: .
       args:
-        # .env の NEXT_PUBLIC_GA_ID をビルド時に渡す（未設定ならGAは読み込まない）
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
         NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-}
+    image: takanodocker/vliverlab-hp:latest
+    restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      # キャスト画像・DBの永続化（コンテナ再作成しても消えない）
+      # DB・アップロードファイル（コンテナ再作成でも消えない）
       - app_data:/data
     env_file: .env
-    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/data/dev.db
+      - CAST_IMAGE_DIR=/data/cast
 
 volumes:
   app_data:

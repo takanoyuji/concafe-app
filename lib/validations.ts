@@ -23,11 +23,12 @@ export const CastSchema = z.object({
   name: z.string().min(1, "名前は必須です"),
   bio: z.string().min(1, "一言は必須です"),
   imageUrl: z.string().min(1, "画像URLは必須です"),
-  storeId: z.string().min(1, "店舗は必須です"),
   order: z.number().int().default(0),
   twitterUrl: z.string().nullish(),
-  instagramUrl: z.string().nullish(),
-  tiktokUrl: z.string().nullish(),
+  youtubeUrl: z.string().nullish(),
+  streamUrl: z.string().nullish(),
+  remoteEnabled: z.boolean().default(false),
+  unmannedEnabled: z.boolean().default(false),
 });
 
 export const GrantPointsSchema = z.object({

@@ -53,10 +53,10 @@ export default function SignupPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Link href="/">
-            <img src={logoUrl} alt="星狼 ロゴ" width={120} height={60} className="object-contain mx-auto mb-4 w-[120px] h-[60px]" />
+            <img src={logoUrl} alt="VLiverLab ロゴ" width={120} height={60} className="object-contain mx-auto mb-4 w-[120px] h-[60px]" />
           </Link>
           <h1 className="text-2xl font-black gradient-text">会員登録</h1>
-          <p className="text-white/50 text-sm mt-1">星狼会員になる</p>
+          <p className="text-white/50 text-sm mt-1">VLiverLab会員になる</p>
         </div>
 
         {message ? (

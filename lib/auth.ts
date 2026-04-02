@@ -6,7 +6,7 @@ const SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET ?? "dev-secret-change-in-production"
 );
 
-export const COOKIE_NAME = "xinglang_session";
+export const COOKIE_NAME = "vliverlab_session";
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export type SessionPayload = {

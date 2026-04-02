@@ -10,6 +10,6 @@ export async function GET(
   const store = await prisma.store.findUnique({ where: { slug } });
   if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const ranking = await getCastRanking(store.id);
+  const ranking = await getCastRanking();
   return NextResponse.json({ ranking });
 }

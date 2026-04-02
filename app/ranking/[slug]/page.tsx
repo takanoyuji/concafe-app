@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getMonthlyRanking, getCastRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
-import CastLink from "@/components/CastLink";
+import CastClickLink from "@/components/analytics/CastClickLink";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +15,12 @@ interface Props {
 }
 
 const STORE_INFO: Record<string, { city: string; keyword: string }> = {
-  tokyo:  { city: "池袋",   keyword: "男装コンカフェ 池袋" },
-  osaka:  { city: "日本橋", keyword: "男装コンカフェ 大阪 日本橋" },
-  nagoya: { city: "名古屋栄", keyword: "男装コンカフェ 名古屋" },
+  osaka: { city: "梅田",  keyword: "VTuberカフェ 大阪 梅田" },
+  tokyo: { city: "池袋", keyword: "VTuberカフェ 東京 池袋" },
 };
 
 export async function generateStaticParams() {
-  return [{ slug: "tokyo" }, { slug: "osaka" }, { slug: "nagoya" }];
+  return [{ slug: "osaka" }, { slug: "tokyo" }];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -30,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!info) return {};
   return {
     title: `${info.city}店 ランキング`,
-    description: `星狼${info.city}店のキャストランキング。${info.keyword}のコスプレイヤーキャストをギフトポイントでランキング表示。`,
+    description: `VLiverLab${info.city}店のキャストランキング。${info.keyword}のコスプレイヤーキャストをギフトポイントでランキング表示。`,
   };
 }
 
@@ -68,8 +67,8 @@ export default async function StoreRankingPage({ params, searchParams }: Props) 
 
   const ranking =
     mode === "cumulative"
-      ? await getCastRanking(store.id)
-      : await getMonthlyRanking(store.id, safeYear, safeMonth);
+      ? await getCastRanking()
+      : await getMonthlyRanking(safeYear, safeMonth);
   const displayed = ranking.filter((c) => c.totalPoints > 0);
 
   const monthlyHref = (y: number, m: number) =>
@@ -166,7 +165,7 @@ export default async function StoreRankingPage({ params, searchParams }: Props) 
         {displayed.length > 0 ? (
           <div className="space-y-3">
             {displayed.map((cast, i) => (
-              <CastLink
+              <CastClickLink
                 key={cast.id}
                 href={`/cast/${cast.id}`}
                 castName={cast.name}
@@ -202,7 +201,7 @@ export default async function StoreRankingPage({ params, searchParams }: Props) 
                 <div className="text-neon-purple font-bold whitespace-nowrap">
                   {cast.totalPoints.toLocaleString()} pt
                 </div>
-              </CastLink>
+              </CastClickLink>
             ))}
           </div>
         ) : (

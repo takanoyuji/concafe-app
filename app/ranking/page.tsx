@@ -3,21 +3,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { getMonthlyRanking, getCastRanking } from "@/lib/points";
 import NavBar from "@/components/ui/NavBar";
-import CastLink from "@/components/CastLink";
+import CastClickLink from "@/components/analytics/CastClickLink";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "ランキング",
   description:
-    "星狼のキャストランキング。池袋・日本橋・名古屋の全店舗を対象に、ポイントを最も受け取ったキャストをランキング形式で表示します。",
+    "VLiverLabのキャストランキング。大阪梅田・東京池袋の全店舗を対象に、ポイントを最も受け取ったキャストをランキング形式で表示します。",
 };
-
-const STORES = [
-  { slug: "tokyo",  name: "池袋店" },
-  { slug: "osaka",  name: "日本橋店" },
-  { slug: "nagoya", name: "名古屋栄店" },
-];
 
 const RANK_BG = [
   "linear-gradient(135deg, #fbbf24, #f59e0b)",
@@ -52,7 +46,7 @@ export default async function RankingPage({ searchParams }: Props) {
   const ranking =
     mode === "cumulative"
       ? await getCastRanking()
-      : await getMonthlyRanking(undefined, safeYear, safeMonth);
+      : await getMonthlyRanking(safeYear, safeMonth);
   const displayed = ranking.filter((c) => c.totalPoints > 0);
 
   const monthlyHref = (y: number, m: number) =>
@@ -125,31 +119,11 @@ export default async function RankingPage({ searchParams }: Props) {
           <p className="text-center text-white/40 text-xs">サービス開始からの累計ギフトポイント集計</p>
         )}
 
-        {/* 店舗別ランキングへのリンク */}
-        <div className="glass p-4">
-          <p className="text-white/60 text-xs mb-3 text-center">店舗別ランキング</p>
-          <div className="flex gap-2 justify-center flex-wrap">
-            {STORES.map((s) => (
-              <Link
-                key={s.slug}
-                href={
-                  mode === "cumulative"
-                    ? `/ranking/${s.slug}?mode=cumulative`
-                    : `/ranking/${s.slug}?year=${safeYear}&month=${safeMonth}&mode=monthly`
-                }
-                className="glass-dark px-4 py-2 text-sm text-white/80 hover:text-neon-purple hover:border-neon-violet transition-all rounded-full"
-              >
-                {s.name} →
-              </Link>
-            ))}
-          </div>
-        </div>
-
         {/* ランキング一覧 */}
         {displayed.length > 0 ? (
           <div className="space-y-3">
             {displayed.map((cast, i) => (
-              <CastLink
+              <CastClickLink
                 key={cast.id}
                 href={`/cast/${cast.id}`}
                 castName={cast.name}
@@ -181,12 +155,11 @@ export default async function RankingPage({ searchParams }: Props) {
                   <div className="font-bold text-white group-hover:text-neon-purple transition-colors truncate">
                     {cast.name}
                   </div>
-                  <div className="text-xs text-white/40">{cast.storeName}</div>
                 </div>
                 <div className="text-neon-purple font-bold whitespace-nowrap">
                   {cast.totalPoints.toLocaleString()} pt
                 </div>
-              </CastLink>
+              </CastClickLink>
             ))}
           </div>
         ) : (

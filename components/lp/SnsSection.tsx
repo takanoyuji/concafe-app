@@ -1,15 +1,18 @@
 "use client";
 
-import { trackLineClick, trackSnsClick } from "@/lib/analytics";
+import { clickLine, clickSns } from "@/lib/analytics";
+
+const LINE_URL = "https://line.me/R/ti/p/@468iwzei?ts=06010015&oat_content=url";
+const LINE_SOLO = "https://line.me/R/ti/p/@854yydqq?oat_content=url&ts=11212033";
 
 const XIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
   </svg>
 );
 
 const InstagramIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
     <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
     <circle cx="12" cy="12" r="4" />
     <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
@@ -17,8 +20,24 @@ const InstagramIcon = () => (
 );
 
 const TikTokIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.3 6.3 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15.3a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V9.01a8.16 8.16 0 0 0 4.79 1.53V7.1a4.85 4.85 0 0 1-1.03-.41z" />
+  </svg>
+);
+
+const YouTubeIcon = () => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M22.54 6.42a2.83 2.83 0 0 0-1.99-2C18.88 4 12 4 12 4s-6.88 0-8.55.46a2.83 2.83 0 0 0-1.99 2A29.94 29.94 0 0 0 1 12a29.94 29.94 0 0 0 .46 5.58 2.83 2.83 0 0 0 1.99 2C5.12 20 12 20 12 20s6.88 0 8.55-.46a2.83 2.83 0 0 0 1.99-2A29.94 29.94 0 0 0 23 12a29.94 29.94 0 0 0-.46-5.58zM9.75 15.02V8.98L15.5 12l-5.75 3.02z" />
+  </svg>
+);
+
+const GiftIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <path d="M20 12v10H4V12" />
+    <path d="M22 7H2v5h20V7z" />
+    <path d="M12 22V7" />
+    <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+    <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
   </svg>
 );
 
@@ -28,109 +47,189 @@ const LineIcon = () => (
   </svg>
 );
 
-const STORES = [
-  {
-    name: "東京店（池袋）",
-    x: "https://x.com/xinglang_tokyo",
-    instagram: "https://www.instagram.com/xinglang_tokyo/",
-    tiktok: "https://www.tiktok.com/@xinglang_tokyo",
-  },
-  {
-    name: "大阪店（日本橋）",
-    x: "https://x.com/xinglang_osaka",
-    instagram: "https://www.instagram.com/xinglang_osaka/",
-    tiktok: "https://www.tiktok.com/@xinglang_osaka",
-  },
-  {
-    name: "名古屋店（栄）",
-    x: "https://x.com/xinglang_nagoya",
-    instagram: "https://www.instagram.com/xinglang_nagoya/",
-    tiktok: "https://www.tiktok.com/@xinglang_nagoya",
-  },
-];
-
 export default function SnsSection() {
   return (
-    <section id="sec07" className="py-20 px-4 star-bg">
-      <h2 className="section-title gradient-text">SNS</h2>
+    <section id="sec07" className="py-24 px-4 star-bg">
+      <div className="holo-divider" />
+      <div className="max-w-2xl mx-auto pt-12 space-y-12 text-center">
 
-      {/* LINE 予約 */}
-      <div data-reveal className="max-w-sm mx-auto mb-10">
-        <a
-          href="https://line.me/R/ti/p/@xinglang"
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => trackLineClick("公式")}
-          className="glass flex items-center justify-center gap-3 p-5 hover:border-neon-violet transition-all duration-300 hover:scale-105"
-        >
-          <span className="text-[#06C755]">
-            <LineIcon />
-          </span>
-          <div className="text-center">
-            <div className="font-bold text-white text-lg">公式LINE</div>
-            <div className="text-sm text-neon-purple font-semibold">ご予約はこちら</div>
-          </div>
-        </a>
-      </div>
+        {/* タイトル */}
+        <h2 className="section-title holo-text">FOLLOW US</h2>
 
-      {/* 店舗別 SNS */}
-      <div data-reveal data-reveal-delay="150" className="max-w-4xl mx-auto space-y-6">
-        {STORES.map((store) => (
-          <div key={store.name} className="glass p-5">
-            <h3 className="text-star-300 font-bold mb-4 text-sm text-center">{store.name}</h3>
-            <div className="flex gap-3 justify-center">
-              <a
-                href={store.x}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackSnsClick("x", store.name)}
-                className="glass-dark flex-1 max-w-[120px] flex flex-col items-center gap-2 py-4 hover:border-neon-violet transition-all duration-300 hover:scale-105"
-              >
-                <span className="text-white"><XIcon /></span>
-                <span className="text-xs text-white/60">X</span>
-              </a>
-              <a
-                href={store.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackSnsClick("instagram", store.name)}
-                className="glass-dark flex-1 max-w-[120px] flex flex-col items-center gap-2 py-4 hover:border-neon-violet transition-all duration-300 hover:scale-105"
-              >
-                <span className="text-neon-pink"><InstagramIcon /></span>
-                <span className="text-xs text-white/60">Instagram</span>
-              </a>
-              <a
-                href={store.tiktok}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackSnsClick("tiktok", store.name)}
-                className="glass-dark flex-1 max-w-[120px] flex flex-col items-center gap-2 py-4 hover:border-neon-violet transition-all duration-300 hover:scale-105"
-              >
-                <span className="text-white"><TikTokIcon /></span>
-                <span className="text-xs text-white/60">TikTok</span>
-              </a>
-            </div>
-          </div>
-        ))}
-
-        {/* TikTok 総合 */}
-        <div className="text-center">
+        {/* SNS アイコン 5つ */}
+        <div data-reveal className="flex gap-5 justify-center flex-wrap items-center">
           <a
-            href="https://www.tiktok.com/@xinglang_grp"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackSnsClick("tiktok", "星狼グループ公式")}
-            className="inline-flex items-center gap-2 glass px-6 py-3 hover:border-neon-violet transition-all duration-300 hover:scale-105"
+            href="https://x.com/vliver_lab"
+            target="_blank" rel="noopener noreferrer"
+            className="sns-btn sns-x"
+            aria-label="X (旧Twitter)"
+            onClick={() => clickSns("x", "lp")}
+          >
+            <XIcon />
+          </a>
+          <a
+            href="https://www.instagram.com/v_liver_lab/"
+            target="_blank" rel="noopener noreferrer"
+            className="sns-btn sns-instagram"
+            aria-label="Instagram"
+            onClick={() => clickSns("instagram", "lp")}
+          >
+            <InstagramIcon />
+          </a>
+          <a
+            href="https://www.tiktok.com/@v.liver.lab"
+            target="_blank" rel="noopener noreferrer"
+            className="sns-btn sns-tiktok"
+            aria-label="TikTok"
+            onClick={() => clickSns("tiktok", "lp")}
           >
             <TikTokIcon />
-            <span className="text-sm text-white/80">TikTok 星狼グループ公式</span>
+          </a>
+          <a
+            href="https://www.youtube.com/@VliverLab"
+            target="_blank" rel="noopener noreferrer"
+            className="sns-btn sns-youtube"
+            aria-label="YouTube"
+            onClick={() => clickSns("youtube", "lp")}
+          >
+            <YouTubeIcon />
+          </a>
+          <a
+            href="https://vliverlab.official.ec/"
+            target="_blank" rel="noopener noreferrer"
+            className="sns-btn sns-ec"
+            aria-label="遠隔プレゼント EC"
+            onClick={() => clickSns("ec", "lp")}
+          >
+            <GiftIcon />
+            <span className="sns-ec-label">遠隔プレゼント</span>
+          </a>
+        </div>
+
+        {/* LINE ボタン 2つ */}
+        <div data-reveal data-reveal-delay="200" className="flex flex-col sm:flex-row gap-4 justify-center">
+          <a
+            href={LINE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="line-primary-btn"
+            onClick={() => clickLine("予約・お問い合わせ")}
+          >
+            <LineIcon />
+            <span>ご予約・お問い合わせ</span>
+          </a>
+          <a
+            href={LINE_SOLO}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="line-ghost-btn"
+            onClick={() => clickLine("無人営業のご予約")}
+          >
+            <LineIcon />
+            <span>無人営業のご予約</span>
           </a>
         </div>
       </div>
 
-      <p className="text-center text-white/40 text-sm mt-12">
-        © 2026 星狼 All rights reserved.
-      </p>
+      <style>{`
+        .sns-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          color: white;
+          text-decoration: none;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+          flex-shrink: 0;
+        }
+        .sns-btn:hover {
+          transform: scale(1.12);
+        }
+        .sns-x:hover {
+          box-shadow: 0 0 20px rgba(255,255,255,0.5), 0 0 44px rgba(255,255,255,0.18);
+          border-color: rgba(255,255,255,0.4);
+        }
+        .sns-instagram:hover {
+          box-shadow: 0 0 20px rgba(255,45,155,0.65), 0 0 44px rgba(255,110,55,0.3);
+          border-color: rgba(255,100,55,0.5);
+        }
+        .sns-tiktok:hover {
+          box-shadow: 0 0 20px rgba(0,240,255,0.6), 0 0 44px rgba(0,240,255,0.22);
+          border-color: rgba(0,240,255,0.45);
+        }
+        .sns-youtube:hover {
+          box-shadow: 0 0 20px rgba(255,0,0,0.6), 0 0 44px rgba(255,50,0,0.22);
+          border-color: rgba(255,30,0,0.45);
+        }
+        .sns-ec {
+          width: auto;
+          min-width: 64px;
+          height: 64px;
+          padding: 0 18px;
+          border-radius: 32px;
+          gap: 8px;
+        }
+        .sns-ec-label {
+          font-size: 11px;
+          font-family: 'Rajdhani', sans-serif;
+          font-weight: 600;
+          letter-spacing: 0.03em;
+          white-space: nowrap;
+        }
+        .sns-ec:hover {
+          box-shadow: 0 0 20px rgba(180,77,255,0.55), 0 0 44px rgba(0,240,255,0.2);
+          border-color: rgba(180,77,255,0.5);
+        }
+
+        /* LINE ボタン */
+        .line-primary-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 15px 32px;
+          border-radius: 9999px;
+          font-size: 0.95rem;
+          font-weight: 700;
+          font-family: 'Noto Sans JP', sans-serif;
+          background: linear-gradient(135deg, #00f0ff, #b44dff, #ff2d9b);
+          background-size: 200% 200%;
+          animation: holo-shift 4s ease infinite;
+          color: white;
+          text-decoration: none;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          white-space: nowrap;
+          border: none;
+        }
+        .line-primary-btn:hover {
+          transform: scale(1.04);
+          box-shadow: 0 0 28px rgba(180,77,255,0.55), 0 0 56px rgba(0,240,255,0.2);
+        }
+        .line-ghost-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 30px;
+          border-radius: 9999px;
+          font-size: 0.95rem;
+          font-weight: 700;
+          font-family: 'Noto Sans JP', sans-serif;
+          background: transparent;
+          color: rgba(255,255,255,0.85);
+          text-decoration: none;
+          border: 1px solid rgba(180,77,255,0.45);
+          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+          white-space: nowrap;
+        }
+        .line-ghost-btn:hover {
+          transform: scale(1.04);
+          box-shadow: 0 0 20px rgba(180,77,255,0.35);
+          border-color: rgba(180,77,255,0.75);
+        }
+      `}</style>
     </section>
   );
 }

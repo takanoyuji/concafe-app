@@ -6,12 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const store = await prisma.store.findUnique({
-    where: { slug },
-    include: {
-      casts: { orderBy: { order: "asc" } },
-    },
-  });
+  const store = await prisma.store.findUnique({ where: { slug } });
   if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ store });
 }

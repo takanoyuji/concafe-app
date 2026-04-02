@@ -21,7 +21,8 @@ export async function GET(
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const filepath = path.join("/data/cast", filename);
+  const dir = process.env.CAST_IMAGE_DIR ?? path.join(process.cwd(), "public/images/cast");
+  const filepath = path.join(dir, filename);
 
   try {
     const buffer = await readFile(filepath);

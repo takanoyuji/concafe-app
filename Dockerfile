@@ -14,8 +14,11 @@ RUN npm config set fetch-retries 5 && \
 
 COPY . .
 
-# ロゴを app/assets に配置（ビルドに含め public 配信に依存しない）
-RUN mkdir -p app/assets && cp "public/images/名称未設定星狼 1.jpg" "app/assets/logo.jpg"
+# ビルド時に .env から渡す想定（compose の build.args で指定）
+ARG NEXT_PUBLIC_BASE_URL
+ARG NEXT_PUBLIC_GA_ID
+ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
+ENV NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID
 
 # ビルド時のメモリ上限（ホストのRAMに合わせること。2GB なら 1024〜1536、4GB 以上なら 4096）
 ENV NODE_OPTIONS=--max-old-space-size=1536
@@ -55,5 +58,4 @@ ENV HOSTNAME=0.0.0.0
 # 本番: DB を永続ボリューム /data に置く（.env で上書き可）
 ENV DATABASE_URL=file:/data/concafe.db
 
-# root で実行（Prisma が node_modules に書き込むため）
 CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts && npm start"]

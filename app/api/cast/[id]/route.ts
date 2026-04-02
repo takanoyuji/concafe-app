@@ -10,7 +10,6 @@ export async function GET(
   const { id } = await params;
   const cast = await prisma.cast.findUnique({
     where: { id },
-    include: { store: true },
   });
   if (!cast) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ cast });
