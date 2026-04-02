@@ -10,10 +10,19 @@ import SnsSection from "@/components/lp/SnsSection";
 import RulesSection from "@/components/lp/RulesSection";
 import RecruitSection from "@/components/lp/RecruitSection";
 import Footer from "@/components/ui/Footer";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const rawItems = await prisma.menuItem.findMany({
+    orderBy: [{ category: "asc" }, { order: "asc" }],
+  });
+  // Date型はクライアントコンポーネントに渡せないのでシリアライズ
+  const menuItems = rawItems.map(({ id, category, name, price, note, badge, order }) => ({
+    id, category, name, price, note, badge, order,
+  }));
+
   return (
     <>
       <NavBar />
@@ -22,7 +31,7 @@ export default function HomePage() {
         <ConceptSection />
         <CastSection />
         <SystemSection />
-        <MenuSection />
+        <MenuSection initialItems={menuItems} />
         <CalendarSection />
         <AccessSection />
         <SnsSection />

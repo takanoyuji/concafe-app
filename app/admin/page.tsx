@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import NavBar from "@/components/ui/NavBar";
 
-interface Cast { id: string; name: string; bio: string; imageUrl: string; twitterUrl?: string | null; youtubeUrl?: string | null; streamUrl?: string | null; remoteEnabled: boolean; unmannedEnabled: boolean }
+interface Cast { id: string; name: string; bio: string; imageUrl: string; order: number; twitterUrl?: string | null; youtubeUrl?: string | null; streamUrl?: string | null; remoteEnabled: boolean; unmannedEnabled: boolean }
 interface Title { id: string; name: string; threshold: number; order: number }
 interface Customer { id: string; email: string; emailVerified: boolean; balance: number; createdAt: string }
 interface MenuItem { id: string; category: string; name: string; price?: string | null; note?: string | null; badge?: string | null; order: number }
@@ -109,7 +109,7 @@ export default function AdminPage() {
   const editCast = (cast: Cast) => {
     setCastForm({
       name: cast.name, bio: cast.bio, imageUrl: cast.imageUrl,
-      order: 0,
+      order: cast.order,
       twitterUrl: cast.twitterUrl ?? "",
       youtubeUrl: cast.youtubeUrl ?? "",
       streamUrl: cast.streamUrl ?? "",

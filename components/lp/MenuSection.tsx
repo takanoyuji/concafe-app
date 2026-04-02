@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 type DrinkItem = string | { name: string; extra: string };
 interface MenuItem { id: string; category: string; name: string; price?: string | null; note?: string | null; badge?: string | null; order: number }
@@ -71,17 +71,10 @@ const COCKTAIL_BASES: { id: string; name: string; color: string; items: DrinkIte
 const TABS = ["ノンアル＆フード", "カクテル", "シャンパン", "キャスト"] as const;
 type TabType = typeof TABS[number];
 
-export default function MenuSection() {
+export default function MenuSection({ initialItems = [] }: { initialItems?: MenuItem[] }) {
   const [activeTab, setActiveTab] = useState<TabType>("ノンアル＆フード");
   const [openBases, setOpenBases] = useState<string[]>(["cassis"]);
-  const [dbItems, setDbItems] = useState<MenuItem[]>([]);
-
-  useEffect(() => {
-    fetch("/api/menu", { cache: "no-store" })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.items) setDbItems(d.items); })
-      .catch(() => {});
-  }, []);
+  const [dbItems] = useState<MenuItem[]>(initialItems);
 
   const by = (cat: string) => dbItems.filter(i => i.category === cat).sort((a, b) => a.order - b.order);
   const hasDb = dbItems.length > 0;
