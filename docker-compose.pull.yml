@@ -13,6 +13,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/data/dev.db
+      - CAST_IMAGE_DIR=/data/cast-images
 
 volumes:
   app_data:
