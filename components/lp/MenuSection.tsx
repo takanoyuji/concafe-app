@@ -77,9 +77,9 @@ export default function MenuSection() {
   const [dbItems, setDbItems] = useState<MenuItem[]>([]);
 
   useEffect(() => {
-    fetch("/api/menu")
+    fetch("/api/menu", { cache: "no-store" })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.items?.length) setDbItems(d.items); })
+      .then(d => { if (d?.items) setDbItems(d.items); })
       .catch(() => {});
   }, []);
 

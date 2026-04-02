@@ -14,6 +14,7 @@ type Cast = {
 
 export default function CastTabs({ casts }: { casts: Cast[] }) {
   const [showAll, setShowAll] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const displayed = showAll ? casts : casts.slice(0, 8);
 
   return (
@@ -29,13 +30,23 @@ export default function CastTabs({ casts }: { casts: Cast[] }) {
               onClick={() => clickCast(cast.name)}
             >
               <div className="relative aspect-[3/4] bg-night-900">
-                <Image
-                  src={cast.imageUrl || "/images/cast-placeholder.jpg"}
-                  alt={cast.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
+                {failedImages.has(cast.id) || !cast.imageUrl ? (
+                  <div className="absolute inset-0 flex items-center justify-center"
+                    style={{ background: "linear-gradient(135deg, #0d0b1a 0%, #1a1033 100%)" }}>
+                    <span className="font-orbitron font-bold text-4xl" style={{ color: "#b44dff", opacity: 0.6 }}>
+                      {cast.name.charAt(0)}
+                    </span>
+                  </div>
+                ) : (
+                  <Image
+                    src={cast.imageUrl}
+                    alt={cast.name}
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    onError={() => setFailedImages(prev => new Set([...prev, cast.id]))}
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-night-950/80 via-transparent to-transparent" />
                 {(cast.remoteEnabled || cast.unmannedEnabled) && (
                   <div className="absolute bottom-[44px] right-2 flex flex-col items-end gap-1">

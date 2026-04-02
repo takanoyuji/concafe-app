@@ -6,7 +6,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const items = await prisma.menuItem.findMany({ orderBy: [{ category: "asc" }, { order: "asc" }] });
-  return NextResponse.json({ items });
+  return NextResponse.json({ items }, {
+    headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+  });
 }
 
 export async function POST(req: NextRequest) {
