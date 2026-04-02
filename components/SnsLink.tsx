@@ -1,6 +1,6 @@
 "use client";
 
-import { trackSnsClick } from "@/lib/analytics";
+import { clickSns } from "@/lib/analytics";
 
 type Props = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   snsType: string;
@@ -19,7 +19,7 @@ export default function SnsLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={() => trackSnsClick(snsType, locationName)}
+      onClick={() => clickSns(snsType, locationName)}
       {...rest}
     >
       {children}

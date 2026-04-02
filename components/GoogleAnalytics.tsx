@@ -3,18 +3,18 @@
 import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { useEffect, Suspense } from "react";
-import { getGAId, pageview } from "@/lib/analytics";
+import { getGaId, pageview } from "@/lib/analytics";
 
 function GoogleAnalyticsInner() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const id = getGAId();
+    const id = getGaId();
     if (!id || !pathname) return;
     pageview(pathname);
   }, [pathname]);
 
-  const gaId = getGAId();
+  const gaId = getGaId();
   if (!gaId) return null;
 
   return (

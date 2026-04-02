@@ -1,6 +1,6 @@
 "use client";
 
-import { trackMapClick } from "@/lib/analytics";
+import { clickMap } from "@/lib/analytics";
 
 type Props = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   locationName: string;
@@ -12,7 +12,7 @@ export default function MapLink({ locationName, href, children, ...rest }: Props
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={() => trackMapClick(locationName)}
+      onClick={() => clickMap(locationName)}
       {...rest}
     >
       {children}
