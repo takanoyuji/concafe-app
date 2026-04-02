@@ -1,15 +1,18 @@
-# 手元でビルドしたイメージを pull または load して使う用（サーバーでビルドしない）
+# サーバ用: ビルドせずイメージの pull（または load）と up のみで起動
 # 使い方: docker compose -f docker-compose.pull.yml pull && docker compose -f docker-compose.pull.yml up -d
-# save/load の場合は .env に DOCKER_IMAGE=concafe-app-app:latest を入れてから up
+
 services:
   app:
-    image: ${DOCKER_IMAGE:-concafe-app-app:latest}
+    image: takanodocker/vliverlab-hp:latest
+    restart: always
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3001:3000"
     volumes:
       - app_data:/data
-    env_file: .env
-    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/data/dev.db
 
 volumes:
   app_data:

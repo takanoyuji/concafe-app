@@ -10,64 +10,62 @@ declare global {
       targetId: string,
       config?: Record<string, unknown>
     ) => void;
-    dataLayer?: unknown[];
   }
 }
 
-export function getGAId(): string | undefined {
-  return process.env.NEXT_PUBLIC_GA_ID || undefined;
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
+
+export function getGaId(): string | undefined {
+  if (typeof window === "undefined") return GA_ID;
+  return process.env.NEXT_PUBLIC_GA_ID;
 }
 
-export function isGAEnabled(): boolean {
-  return !!getGAId();
+export function isGaEnabled(): boolean {
+  return Boolean(getGaId());
 }
 
-/** ページビュー送信（App Router のクライアント遷移用） */
-export function pageview(path: string, title?: string): void {
-  const id = getGAId();
+/** ページビュー送信（ルート変更時用） */
+export function pageview(path: string): void {
+  const id = getGaId();
   if (!id || typeof window === "undefined" || !window.gtag) return;
-  window.gtag("config", id, {
-    page_path: path,
-    ...(title && { page_title: title }),
-  });
+  window.gtag("config", id, { page_path: path });
 }
 
 /** 汎用イベント送信 */
-export function trackEvent(
-  eventName: string,
+export function event(
+  name: string,
   params?: Record<string, string | number | boolean | undefined>
 ): void {
-  const id = getGAId();
+  const id = getGaId();
   if (!id || typeof window === "undefined" || !window.gtag) return;
-  const safeParams = params
+  const safe = params
     ? Object.fromEntries(
-        Object.entries(params).filter(([, v]) => v !== undefined && v !== "")
-      ) as Record<string, string | number | boolean>
+        Object.entries(params).filter(
+          ([, v]) => v !== undefined && v !== null && v !== ""
+        )
+      )
     : undefined;
-  window.gtag("event", eventName, safeParams);
+  window.gtag("event", name, safe);
 }
 
-/** Google Map クリック */
-export function trackMapClick(locationName: string): void {
-  trackEvent("click_map", { location_name: locationName });
+// --- 指定イベント名のラッパー ---
+
+export function clickMap(locationName: string): void {
+  event("click_map", { location_name: locationName });
 }
 
-/** LINE クリック */
-export function trackLineClick(locationName: string): void {
-  trackEvent("click_line", { location_name: locationName });
+export function clickLine(locationName: string): void {
+  event("click_line", { location_name: locationName });
 }
 
-/** 電話クリック */
-export function trackTelClick(locationName: string): void {
-  trackEvent("click_tel", { location_name: locationName });
+export function clickTel(locationName: string): void {
+  event("click_tel", { location_name: locationName });
 }
 
-/** SNS クリック（sns_type: x | instagram | tiktok | facebook など） */
-export function trackSnsClick(snsType: string, locationName: string): void {
-  trackEvent("click_sns", { sns_type: snsType, location_name: locationName });
+export function clickSns(snsType: string, locationName: string): void {
+  event("click_sns", { sns_type: snsType, location_name: locationName });
 }
 
-/** キャストクリック */
-export function trackCastClick(castName: string): void {
-  trackEvent("click_cast", { cast_name: castName });
+export function clickCast(castName: string): void {
+  event("click_cast", { cast_name: castName });
 }
