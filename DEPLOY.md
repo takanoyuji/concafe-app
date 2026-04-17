@@ -24,6 +24,53 @@ docker compose -f docker-compose.pull.yml up -d --force-recreate
 
 ---
 
+## データ・キャスト画像を壊さないために（必読）
+
+本番は `docker-compose.pull.yml` の **名前付きボリューム `app_data` を `/data` にマウント**しています。
+
+| 置き場所（コンテナ内） | 内容 |
+|------------------------|------|
+| `/data/dev.db`（`DATABASE_URL` で指定） | SQLite のユーザ・キャスト・メニュー等 |
+| `/data/cast-images/`（`CAST_IMAGE_DIR`） | 管理画面アップロードのキャスト画像実体 |
+
+`pull` → `up -d --force-recreate` は **コンテナだけ作り直し、ボリュームはそのまま**なので、通常は DB も画像も残ります。
+
+### 絶対にやらないこと
+
+- `docker compose ... down -v`（`-v` でボリューム削除 → **DB と画像が消える**）
+- `docker volume rm ...`（同上）
+- 本番で **`compose.yml` の `docker compose build` + `./cast-images` バインド**に切り替える（画像の保存先が `/data/cast-images` とズレて、DB の URL と実ファイルが一致しなくなることがある）
+
+### デプロイ前に推奨（バックアップ）
+
+プロジェクト名はディレクトリ名などで変わるため、**実際のボリューム名は `docker volume ls` で確認**する。
+
+```bash
+cd /opt/apps/vliverlab-hp
+docker volume ls | grep app_data
+# 例: vliverlab-hp_app_data
+
+mkdir -p backups
+VOL=vliverlab-hp_app_data   # 上で確認した名前に合わせる
+
+docker run --rm \
+  -v "${VOL}:/data:ro" \
+  -v "$(pwd)/backups:/backup" \
+  alpine \
+  sh -c 'tar czf "/backup/app_data_$(date +%Y%m%d_%H%M%S).tar.gz" -C /data .'
+```
+
+中身の目安: `dev.db`（または運用中の DB ファイル名）と `cast-images/` 以下にファイルがあること。
+
+### デプロイ後の確認
+
+- トップ・CAST・ギフトで **キャスト画像が表示される**こと
+- 管理画面ログイン・ユーザーが消えていないこと
+
+`.env.production` で **`DATABASE_URL` と `CAST_IMAGE_DIR` を変えない**（変える場合はファイルの移行とパスの整合が必要）。
+
+---
+
 ## ここからサーバにアップするには（コマンド一覧）
 
 以下、**手元の PC** と **サーバ** で実行するコマンドを順に書きます。  

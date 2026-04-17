@@ -13,6 +13,7 @@ export default function ScrollInit() {
       el.style.opacity = "0";
       el.style.transform = "translateY(28px)";
       el.style.transition = "opacity 0.75s cubic-bezier(0.4,0,0.2,1), transform 0.75s cubic-bezier(0.4,0,0.2,1)";
+      el.style.pointerEvents = "none";
     });
 
     const observer = new IntersectionObserver(
@@ -24,6 +25,7 @@ export default function ScrollInit() {
             setTimeout(() => {
               el.style.opacity = "1";
               el.style.transform = "none";
+              el.style.pointerEvents = "";
             }, Number(delay));
             observer.unobserve(el);
           }

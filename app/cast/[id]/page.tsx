@@ -69,7 +69,7 @@ export default async function CastDetailPage({ params }: Props) {
           <Link href="/cast" className="btn-secondary inline-block">
             ← キャスト一覧
           </Link>
-          <Link href="/gift" className="btn-primary inline-block">
+          <Link href={`/gift/${cast.id}`} className="btn-primary inline-block">
             プレゼントする 🎁
           </Link>
         </div>

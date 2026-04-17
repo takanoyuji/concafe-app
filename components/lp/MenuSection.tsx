@@ -101,14 +101,27 @@ export default function MenuSection({ initialItems = [] }: { initialItems?: Menu
 
         <h2 className="section-title holo-text text-center">MENU</h2>
 
-        {/* タブバー */}
-        <div className="flex gap-0 border-b border-white/10 overflow-x-auto">
+        {/*
+          横スクロール付き flex はモバイル WebKit で「右側のタブだけ click が飛ぶ」ことがある（横パン候補として奪われる）。
+          ゲスト＝スマホ幅・管理者＝PC で再現差が出やすい。グリッドで1画面に収め、タッチは pointerdown でも切り替え。
+        */}
+        <div
+          role="tablist"
+          aria-label="メニューカテゴリ"
+          className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-0 border-b border-white/10"
+        >
           {TABS.map((tab) => (
             <button
               key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
               onClick={() => setActiveTab(tab)}
-              className="relative px-4 py-3 text-sm font-rajdhani font-semibold tracking-wide whitespace-nowrap transition-colors duration-200"
-              style={{ color: activeTab === tab ? "#ffffff" : "rgba(255,255,255,0.45)" }}
+              onPointerDown={(e) => {
+                if (e.pointerType === "touch") setActiveTab(tab);
+              }}
+              className="relative px-2 py-3 sm:px-4 text-center text-xs sm:text-sm font-rajdhani font-semibold tracking-wide transition-colors duration-200 sm:whitespace-nowrap"
+              style={{ color: activeTab === tab ? "#ffffff" : "rgba(255,255,255,0.45)", touchAction: "manipulation" }}
             >
               {tab}
               {activeTab === tab && (
@@ -161,8 +174,10 @@ export default function MenuSection({ initialItems = [] }: { initialItems?: Menu
               {COCKTAIL_BASES.map((base) => (
                 <div key={base.id} className="glass-card overflow-hidden">
                   <button
+                    type="button"
                     onClick={() => toggleBase(base.id)}
                     className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left"
+                    style={{ touchAction: "manipulation" }}
                   >
                     <div className="flex items-center gap-3">
                       <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"

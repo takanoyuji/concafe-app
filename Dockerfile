@@ -30,7 +30,7 @@ ENV NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID
 ENV DATABASE_URL=file:./dev.db
 RUN npx prisma generate
 RUN npx prisma migrate deploy
-RUN npm run build
+RUN npm run build -- --webpack
 
 FROM node:20-slim
 WORKDIR /app

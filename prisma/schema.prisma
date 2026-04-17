@@ -11,6 +11,8 @@ model User {
   email              String   @unique
   passwordHash       String
   name               String?
+  /// お気に入りキャストIDの配列（JSON）
+  favoriteCastIds    Json     @default("[]")
   favoriteStoreId    String?
   favoriteCast1Id    String?
   favoriteCast2Id    String?

@@ -5,7 +5,7 @@ import NavBar from "@/components/ui/NavBar";
 
 interface Cast { id: string; name: string; bio: string; imageUrl: string; order: number; twitterUrl?: string | null; youtubeUrl?: string | null; streamUrl?: string | null; remoteEnabled: boolean; unmannedEnabled: boolean }
 interface Title { id: string; name: string; threshold: number; order: number }
-interface Customer { id: string; email: string; emailVerified: boolean; balance: number; createdAt: string }
+interface Customer { id: string; email: string; name: string | null; emailVerified: boolean; balance: number; createdAt: string }
 interface MenuItem { id: string; category: string; name: string; price?: string | null; note?: string | null; badge?: string | null; order: number }
 
 type Tab = "cast" | "points" | "titles" | "menu";
@@ -122,19 +122,23 @@ export default function AdminPage() {
 
   // Grant
   const grantPoints = async (email: string) => {
-    const res = await fetch("/api/points/grant", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, amount: grantAmount, idempotencyKey: crypto.randomUUID() }),
-    });
-    const d = await res.json();
-    if (res.ok) {
-      flash(`${email} に ${grantAmount} pt を付与しました`);
-      // 残高を再取得
-      const u = await fetch("/api/admin/users").then(r => r.json()).catch(() => ({ users: [] }));
-      setCustomers(u.users ?? []);
+    try {
+      const res = await fetch("/api/points/grant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, amount: grantAmount, idempotencyKey: crypto.randomUUID() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        flash(`${email} に ${grantAmount} pt を付与しました`);
+        const u = await fetch("/api/admin/users").then(r => r.json()).catch(() => ({ users: [] }));
+        setCustomers(u.users ?? []);
+      } else {
+        flash(typeof d.error === "string" ? d.error : "エラーが発生しました", true);
+      }
+    } catch {
+      flash("通信エラーが発生しました", true);
     }
-    else { flash(d.error ?? "エラー", true); }
   };
 
   // Title CRUD
@@ -323,18 +327,29 @@ export default function AdminPage() {
               <div>
                 <input
                   className="input-field"
-                  placeholder="メールアドレスで絞り込み..."
+                  placeholder="メール・ニックネームで絞り込み..."
                   value={customerSearch}
                   onChange={e => setCustomerSearch(e.target.value)}
                 />
               </div>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {customers
-                  .filter(c => c.email.includes(customerSearch))
+                  .filter(c => {
+                    const q = customerSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      c.email.toLowerCase().includes(q) ||
+                      (c.name ?? "").toLowerCase().includes(q)
+                    );
+                  })
                   .map(c => (
                     <div key={c.id} className="glass-dark p-4 flex items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-white text-sm truncate">{c.email}</div>
+                        <div className="text-xs text-white/60 truncate">
+                          ニックネーム:{" "}
+                          <span className="text-white/90">{c.name?.trim() ? c.name : "（未設定）"}</span>
+                        </div>
                         <div className="text-xs text-white/40">
                           残高: <span className="text-star-300">{c.balance.toLocaleString()} pt</span>
                           {!c.emailVerified && <span className="ml-2 text-yellow-500">未認証</span>}
@@ -349,7 +364,11 @@ export default function AdminPage() {
                       </button>
                     </div>
                   ))}
-                {customers.filter(c => c.email.includes(customerSearch)).length === 0 && (
+                {customers.filter(c => {
+                  const q = customerSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
+                }).length === 0 && (
                   <p className="text-white/40 text-sm text-center py-4">会員が見つかりません</p>
                 )}
               </div>

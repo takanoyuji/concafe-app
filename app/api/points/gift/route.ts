@@ -3,6 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { GiftPointsSchema } from "@/lib/validations";
 import { getUserBalance } from "@/lib/points";
+import { parseFavoriteCastIds } from "@/lib/favorite-casts";
+
+async function appendFavoriteCast(userId: string, castId: string) {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { favoriteCastIds: true },
+  });
+  const ids = parseFavoriteCastIds(u?.favoriteCastIds);
+  if (ids.includes(castId)) return;
+  await prisma.user.update({
+    where: { id: userId },
+    data: { favoriteCastIds: [...ids, castId] },
+  });
+}
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -17,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  const { castId, amount, idempotencyKey } = parsed.data;
+  const { castId, amount, idempotencyKey, addToFavorites } = parsed.data;
 
   const cast = await prisma.cast.findUnique({ where: { id: castId } });
   if (!cast) {
@@ -31,6 +45,7 @@ export async function POST(req: NextRequest) {
 
   const existing = await prisma.pointLedger.findUnique({ where: { idempotencyKey } });
   if (existing) {
+    if (addToFavorites) await appendFavoriteCast(session.userId, castId);
     return NextResponse.json({ message: "Already processed", ledger: existing });
   }
 
@@ -43,6 +58,8 @@ export async function POST(req: NextRequest) {
       idempotencyKey,
     },
   });
+
+  if (addToFavorites) await appendFavoriteCast(session.userId, castId);
 
   return NextResponse.json({ ledger }, { status: 201 });
 }

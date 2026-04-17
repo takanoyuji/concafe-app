@@ -44,6 +44,7 @@ export const GiftPointsSchema = z.object({
   castId: z.string().min(1),
   amount: z.number().int().positive("1以上のポイントを指定してください"),
   idempotencyKey: z.string().min(1),
+  addToFavorites: z.boolean().optional(),
 });
 
 export const TitleSchema = z.object({

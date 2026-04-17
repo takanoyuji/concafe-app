@@ -88,6 +88,19 @@ export default function NavBar() {
       .catch(() => setUser(null));
   }, []);
 
+  // スクロール時にハンバーガーを閉じる（意図したスクロールのみ。開閉直後の誤検知や数 px の jitter で閉じない）
+  useEffect(() => {
+    if (!open) return;
+    const openScrollY = window.scrollY;
+    const openedAt = Date.now();
+    const handleScroll = () => {
+      if (Date.now() - openedAt < 280) return;
+      if (Math.abs(window.scrollY - openScrollY) > 20) setOpen(false);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [open]);
+
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/";
@@ -150,7 +163,9 @@ export default function NavBar() {
             </Link>
           )}
           <button
+            type="button"
             className="text-white/80 hover:text-white p-2 transition-colors"
+            style={{ touchAction: "manipulation" }}
             onClick={() => setOpen(!open)}
             aria-label="メニューを開く"
           >
