@@ -13,14 +13,12 @@ interface Props {
 const STORE_DESC: Record<string, string> = {
   tokyo:
     "池袋駅東口から徒歩5分。ホログラフィックな近未来空間で、VLiverLabのVTuberキャストが温かくお迎えします。",
-  osaka:
-    "大阪梅田の中心地。VLiverLab関西旗艦店として、バーチャルとリアルが交差する特別な夜を体験できます。",
 };
 
 export const dynamic = "force-dynamic";
 
 export async function generateStaticParams() {
-  return [{ slug: "osaka" }, { slug: "tokyo" }];
+  return [{ slug: "tokyo" }];
 }
 
 export default async function StorePage({ params }: Props) {

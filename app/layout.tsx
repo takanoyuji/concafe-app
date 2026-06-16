@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     template: "%s | VLiverLab",
   },
   description:
-    "VTuberとお話しながらお酒を楽しめる新感覚コンセプトカフェ＆バー。大阪梅田・東京池袋で営業中。",
+    "VTuberとお話しながらお酒を楽しめる新感覚コンセプトカフェ＆バー。東京池袋で営業中。",
   keywords: [
     "VTuber",
     "VLiverLab",
@@ -19,7 +19,6 @@ export const metadata: Metadata = {
     "ホログラフィック",
     "バーチャルライバー",
     "VTuberカフェ",
-    "大阪梅田",
     "東京池袋",
     "コンセプトカフェ",
     "vliverlab",
@@ -28,7 +27,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "VLiverLab | VTuberと話せる近未来Cafe&Bar",
     description:
-      "VTuberとお話しながらお酒を楽しめる新感覚コンセプトカフェ＆バー。大阪梅田・東京池袋で営業中。",
+      "VTuberとお話しながらお酒を楽しめる新感覚コンセプトカフェ＆バー。東京池袋で営業中。",
     locale: "ja_JP",
     type: "website",
     siteName: "VLiverLab",
@@ -46,7 +45,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "VLiverLab | VTuberと話せる近未来Cafe&Bar",
     description:
-      "VTuberとお話しながらお酒を楽しめる新感覚コンセプトカフェ＆バー。大阪梅田・東京池袋で営業中。",
+      "VTuberとお話しながらお酒を楽しめる新感覚コンセプトカフェ＆バー。東京池袋で営業中。",
     images: ["/images/vll_logo.png"],
   },
   robots: { index: true, follow: true },

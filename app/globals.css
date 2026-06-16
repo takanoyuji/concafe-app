@@ -53,6 +53,17 @@ body {
   66% { transform: translateY(-10px) translateX(-5px); opacity: 0.8; }
 }
 
+/* 4目並べ：コマ落下アニメーション
+   --piece-drop-from でセルの位置に合わせた落下距離を設定する
+   ease-out と組み合わせることで後半がスローになりふわっとした着地感になる */
+@keyframes piece-drop {
+  0%   { transform: translateY(var(--piece-drop-from, -550%)) scale(0.88); opacity: 0; }
+  18%  { opacity: 1; }
+  74%  { transform: translateY(5%) scale(1.04); }
+  88%  { transform: translateY(-3%) scale(0.98); }
+  100% { transform: translateY(0) scale(1); }
+}
+
 .holo-gradient {
   background: linear-gradient(135deg, #00f0ff 0%, #b44dff 25%, #ff2d9b 50%, #ffe14d 75%, #00f0ff 100%);
   background-size: 300% 300%;

@@ -25,14 +25,8 @@ async function main() {
   });
   console.log(`✅ Admin user created/updated: ${adminEmail}`);
 
-  // 2店舗
+  // 1店舗
   const stores = [
-    {
-      slug: "osaka",
-      name: "VLiverLab 梅田店",
-      address: "〒530-0017 大阪府大阪市北区角田町",
-      mapQuery: "大阪市北区角田町",
-    },
     {
       slug: "tokyo",
       name: "VLiverLab 池袋店",
@@ -48,7 +42,7 @@ async function main() {
       create: store,
     });
   }
-  console.log("✅ 2 stores created");
+  console.log("✅ 1 store created");
 
   // 称号マスタ（初回のみ）
   const existingTitles = await prisma.title.count();

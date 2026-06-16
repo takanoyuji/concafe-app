@@ -4,19 +4,6 @@ import { clickMap } from "@/lib/analytics";
 
 const STORES = [
   {
-    slug: "osaka",
-    badge: "OSAKA",
-    badgeColor: "#00f0ff",
-    name: "VLiverLab 大阪梅田店",
-    zip: "〒530-0057",
-    address: "大阪府大阪市北区曽根崎1-4-6 新御堂筋ビルB1F",
-    mapQuery: "大阪府大阪市北区曽根崎1-4-6 新御堂筋ビルB1F",
-    hours: [
-      { label: "平日", time: "19:00 〜 22:00" },
-      { label: "土日祝", time: "17:00 〜 23:00" },
-    ],
-  },
-  {
     slug: "tokyo",
     badge: "TOKYO",
     badgeColor: "#ff2d9b",
@@ -25,8 +12,8 @@ const STORES = [
     address: "東京都豊島区池袋3-59-9-201",
     mapQuery: "東京都豊島区池袋3-59-9",
     hours: [
-      { label: "平日", time: "19:00 〜 22:00" },
-      { label: "土日祝", time: "17:00 〜 23:00" },
+      { label: "有人営業", time: "19:00 〜 23:00" },
+      { label: "無人営業", time: "24H 対応（要予約）" },
     ],
   },
 ];

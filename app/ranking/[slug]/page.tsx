@@ -15,12 +15,11 @@ interface Props {
 }
 
 const STORE_INFO: Record<string, { city: string; keyword: string }> = {
-  osaka: { city: "梅田",  keyword: "VTuberカフェ 大阪 梅田" },
   tokyo: { city: "池袋", keyword: "VTuberカフェ 東京 池袋" },
 };
 
 export async function generateStaticParams() {
-  return [{ slug: "osaka" }, { slug: "tokyo" }];
+  return [{ slug: "tokyo" }];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

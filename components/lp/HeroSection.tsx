@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import Link from "next/link";
+import Image from "next/image";
 
 interface Particle {
   x: number;
@@ -100,7 +100,20 @@ function ParticleCanvas() {
   );
 }
 
-export default function HeroSection() {
+interface TopCast {
+  id: string;
+  name: string;
+  imageUrl: string;
+  totalPoints: number;
+}
+
+export default function HeroSection({
+  topCast,
+  topCastMonth,
+}: {
+  topCast?: TopCast | null;
+  topCastMonth?: string;
+}) {
   return (
     <section
       className="relative flex flex-col items-center justify-center px-4 pt-16 overflow-hidden"
@@ -133,10 +146,10 @@ export default function HeroSection() {
       />
 
       {/* コンテンツ */}
-      <div className="relative z-10 flex flex-col items-center gap-6 text-center">
+      <div className="relative z-10 w-full max-w-5xl mx-auto flex flex-col items-center gap-6 px-4 sm:px-8">
         {/* タイトル */}
         <h1
-          className="font-orbitron font-black holo-text hero-title"
+          className="font-orbitron font-black holo-text hero-title text-center"
           style={{
             fontSize: "clamp(3rem, 8vw, 7rem)",
             lineHeight: 1.1,
@@ -149,7 +162,7 @@ export default function HeroSection() {
 
         {/* サブタイトル */}
         <p
-          className="hero-sub text-white font-rajdhani font-semibold"
+          className="hero-sub text-white font-rajdhani font-semibold text-center"
           style={{
             fontSize: "clamp(0.95rem, 2.5vw, 1.25rem)",
             letterSpacing: "0.15em",
@@ -158,22 +171,94 @@ export default function HeroSection() {
           VTuberと話せちゃう&nbsp;&nbsp;近未来 Cafe &amp; Bar
         </p>
 
-        {/* CTAボタン */}
-        <div className="hero-cta flex flex-col sm:flex-row gap-4 mt-2">
-          <a
-            href="#menu"
-            className="hero-btn-fill font-rajdhani font-bold text-base px-8 py-3 rounded-full text-white tracking-widest transition-all duration-300"
-          >
-            MENU を見る
-          </a>
-          <a
-            href="https://line.me/R/ti/p/@468iwzei?ts=06010015&oat_content=url"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hero-btn-ghost font-rajdhani font-bold text-base px-8 py-3 rounded-full text-white tracking-widest transition-all duration-300"
-          >
-            ご予約はこちら
-          </a>
+        {/* 下段: ボタン(左) ＋ キャラ(右) */}
+        <div className="hero-cta flex items-end justify-center gap-10 mt-2">
+          {/* CTAボタン */}
+          <div className="flex flex-col sm:flex-row gap-4 shrink-0">
+            <a
+              href="#menu"
+              className="hero-btn-fill font-rajdhani font-bold text-base px-8 py-3 rounded-full text-white tracking-widest transition-all duration-300 text-center"
+            >
+              MENU を見る
+            </a>
+            <a
+              href="https://line.me/R/ti/p/@468iwzei?ts=06010015&oat_content=url"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hero-btn-ghost font-rajdhani font-bold text-base px-8 py-3 rounded-full text-white tracking-widest transition-all duration-300"
+            >
+              ご予約はこちら
+            </a>
+          </div>
+
+          {/* 前月1位キャラ */}
+          {topCast && (
+            <div
+              className="relative hero-chara shrink-0 select-none"
+              style={{ width: "clamp(130px, 22vw, 300px)" }}
+              aria-hidden="true"
+            >
+              {/* ホログラフィックグロー */}
+              <div
+                className="absolute inset-0 rounded-2xl"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at 50% 40%, rgba(180,77,255,0.35) 0%, rgba(0,240,255,0.15) 50%, transparent 75%)",
+                  filter: "blur(20px)",
+                  transform: "scale(1.3)",
+                }}
+              />
+              {/* 画像（丸角） */}
+              <div
+                className="relative rounded-2xl overflow-hidden"
+                style={{
+                  aspectRatio: "3/4",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <Image
+                  src={topCast.imageUrl}
+                  alt=""
+                  fill
+                  className="object-cover object-top"
+                  priority
+                />
+                {/* 下部ほんのりフェード */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      "linear-gradient(to top, rgba(7,6,14,0.55) 0%, transparent 40%)",
+                  }}
+                />
+              </div>
+              {/* NO.1 ラベル */}
+              <div
+                className="absolute bottom-3 left-3 hero-chara-label text-left px-2.5 py-1.5 rounded-lg"
+                style={{
+                  background: "rgba(7,6,14,0.72)",
+                  backdropFilter: "blur(6px)",
+                  border: "1px solid rgba(255,225,77,0.25)",
+                }}
+              >
+                <p
+                  className="font-rajdhani text-[10px] tracking-[0.15em] leading-none whitespace-nowrap"
+                  style={{
+                    color: "#ffe14d",
+                    textShadow: "0 0 6px #ffe14d, 0 0 18px rgba(255,225,77,0.6)",
+                  }}
+                >
+                  👑 {topCastMonth}&nbsp;NO.1
+                </p>
+                <p
+                  className="font-orbitron text-sm font-bold text-white mt-1 leading-tight"
+                  style={{ textShadow: "0 0 8px rgba(255,225,77,0.3)" }}
+                >
+                  {topCast.name}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -239,6 +324,18 @@ export default function HeroSection() {
         .hero-btn-fill:hover {
           transform: scale(1.05);
           box-shadow: 0 0 20px rgba(0,240,255,0.5), 0 0 40px rgba(180,77,255,0.3);
+        }
+
+        /* 前月1位キャラ */
+        .hero-chara {
+          animation: hero-chara-in 1.1s ease-out 0.4s both;
+        }
+        @keyframes hero-chara-in {
+          from { opacity: 0; transform: translateX(24px) scale(0.97); }
+          to   { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .hero-chara-label {
+          animation: hero-fade-up 0.7s ease-out 1.1s both;
         }
 
         /* ゴーストボタン */

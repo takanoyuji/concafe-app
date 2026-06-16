@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "ランキング",
   description:
-    "VLiverLabのキャストランキング。大阪梅田・東京池袋の全店舗を対象に、ポイントを最も受け取ったキャストをランキング形式で表示します。",
+    "VLiverLabのキャストランキング。東京池袋のポイントを最も受け取ったキャストをランキング形式で表示します。",
 };
 
 const RANK_BG = [

@@ -74,9 +74,22 @@ export default function Footer() {
         </div>
 
         {/* コピーライト */}
-        <p className="text-white/45 text-xs font-rajdhani tracking-widest">
-          © 2026 VLiverLab All rights reserved.
-        </p>
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-white/45 text-xs font-rajdhani tracking-widest">
+            © 2026 VLiverLab All rights reserved.
+          </p>
+          <p className="text-white/30 text-xs">
+            Operated by{" "}
+            <a
+              href="https://dataraw.jp/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/50 hover:text-cyan-400 transition-colors underline underline-offset-2"
+            >
+              DATARAW.LLC
+            </a>
+          </p>
+        </div>
       </div>
     </footer>
   );
