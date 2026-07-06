@@ -3,6 +3,16 @@ import { z } from "zod";
 export const SignupSchema = z.object({
   email: z.string().email("有効なメールアドレスを入力してください"),
   password: z.string().min(8, "パスワードは8文字以上で入力してください"),
+  birthdate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "生年月日の形式が正しくありません")
+    .refine((d) => {
+      const date = new Date(d);
+      return !isNaN(date.getTime()) && date < new Date();
+    }, "生年月日が正しくありません"),
+  nickname: z.string().min(1, "ニックネームは必須です").max(20, "ニックネームは20文字以内で入力してください"),
+  favoriteCast1Id: z.string().min(1, "推しキャスト1は必須です"),
+  favoriteCast2Id: z.string().optional(),
+  favoriteStoreId: z.string().optional(),
 });
 
 export const LoginSchema = z.object({
@@ -28,6 +38,9 @@ export const CastSchema = z.object({
   twitterUrl: z.string().nullish(),
   instagramUrl: z.string().nullish(),
   tiktokUrl: z.string().nullish(),
+  airShiftName: z.string().nullish(),
+  rank: z.string().nullish(),
+  exemptFromCommuteRule: z.boolean().default(false),
 });
 
 export const GrantPointsSchema = z.object({

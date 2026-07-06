@@ -10,7 +10,14 @@ export async function GET(
   const { id } = await params;
   const cast = await prisma.cast.findUnique({
     where: { id },
-    include: { store: true },
+    select: {
+      id: true, name: true, bio: true, imageUrl: true,
+      storeId: true, order: true,
+      twitterUrl: true, instagramUrl: true, tiktokUrl: true,
+      createdAt: true, updatedAt: true,
+      store: { select: { id: true, name: true, slug: true } },
+      // rank / airShiftName / exemptFromCommuteRule は除外（給与情報）
+    },
   });
   if (!cast) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ cast });

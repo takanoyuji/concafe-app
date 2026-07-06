@@ -2,7 +2,8 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.MAIL_FROM ?? "星狼 <info@mail.xing-lang.com>";
-const BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+// NEXT_PUBLIC_ はビルド時に焼き込まれるため、サーバー専用URLは APP_URL を使う
+const BASE = process.env.APP_URL ?? "http://localhost:3000";
 
 const SEND_TIMEOUT_MS = 10_000; // 10 秒でタイムアウト
 

@@ -1,0 +1,9 @@
+-- CreateTable
+CREATE TABLE "MenuItem" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "imageUrl" TEXT NOT NULL,
+    "alt" TEXT NOT NULL,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);

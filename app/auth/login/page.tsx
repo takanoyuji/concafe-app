@@ -13,11 +13,13 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [unverified, setUnverified] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setUnverified(false);
 
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -30,6 +32,7 @@ function LoginForm() {
 
     if (!res.ok) {
       setError(data.error ?? "ログインに失敗しました");
+      if (res.status === 403) setUnverified(true);
       return;
     }
 
@@ -50,8 +53,16 @@ function LoginForm() {
         </div>
       )}
       {error && (
-        <div className="text-neon-pink text-sm text-center p-3 bg-pink-950/30 rounded-lg">
-          {error}
+        <div className="text-neon-pink text-sm text-center p-3 bg-pink-950/30 rounded-lg space-y-2">
+          <p>{error}</p>
+          {unverified && (
+            <Link
+              href={`/auth/resend-verification?email=${encodeURIComponent(email)}`}
+              className="block text-xs text-white/60 hover:text-white/90 underline"
+            >
+              認証メールを再送する
+            </Link>
+          )}
         </div>
       )}
       <div>

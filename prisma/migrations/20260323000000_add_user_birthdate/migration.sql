@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN "birthdate" DATETIME;
+ALTER TABLE "User" ADD COLUMN "ageVerified" BOOLEAN NOT NULL DEFAULT false;

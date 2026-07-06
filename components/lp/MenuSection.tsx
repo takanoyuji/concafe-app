@@ -3,28 +3,22 @@ import { useState, useRef } from "react";
 import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 
-const MENU_IMAGES = [
-  { src: "/images/menu/system.jpg",           alt: "システム・料金案内" },
-  { src: "/images/menu/xinglang_menu00.webp", alt: "星狼メニュー表紙" },
-  { src: "/images/menu/xinglang_menu01.webp", alt: "星狼メニュー 1ページ" },
-  { src: "/images/menu/xinglang_menu02.webp", alt: "星狼メニュー 2ページ" },
-  { src: "/images/menu/xinglang_menu03.webp", alt: "星狼メニュー 3ページ" },
-  { src: "/images/menu/xinglang_menu04.webp", alt: "星狼メニュー 4ページ" },
-  { src: "/images/menu/menu1.jpg",            alt: "フードメニュー 1" },
-  { src: "/images/menu/menu2.jpg",            alt: "フードメニュー 2" },
-  { src: "/images/menu/menu3.jpg",            alt: "フードメニュー 3" },
-  { src: "/images/menu/menu4.jpg",            alt: "フードメニュー 4" },
-  { src: "/images/menu/S__95674396.jpg",      alt: "限定メニュー" },
-];
+interface MenuItem {
+  id: string;
+  imageUrl: string;
+  alt: string;
+}
 
-export default function MenuSection() {
+export default function MenuSection({ items }: { items: MenuItem[] }) {
   const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState<(typeof MENU_IMAGES)[0] | null>(null);
+  const [selected, setSelected] = useState<MenuItem | null>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
 
-  const prev = () => setCurrent(i => (i - 1 + MENU_IMAGES.length) % MENU_IMAGES.length);
-  const next = () => setCurrent(i => (i + 1) % MENU_IMAGES.length);
+  if (items.length === 0) return null;
+
+  const prev = () => setCurrent(i => (i - 1 + items.length) % items.length);
+  const next = () => setCurrent(i => (i + 1) % items.length);
 
   const onTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -34,13 +28,12 @@ export default function MenuSection() {
   const onTouchEnd = (e: React.TouchEvent) => {
     const dx = touchStartX.current - e.changedTouches[0].clientX;
     const dy = Math.abs(touchStartY.current - e.changedTouches[0].clientY);
-    // 水平方向の動きが垂直より大きい場合のみスワイプとして判定
     if (Math.abs(dx) > 40 && Math.abs(dx) > dy) {
       if (dx > 0) next(); else prev();
     }
   };
 
-  const img = MENU_IMAGES[current];
+  const img = items[current];
 
   return (
     <section id="sec03" className="py-20 px-4 star-bg">
@@ -58,19 +51,13 @@ export default function MenuSection() {
           aria-label={`${img.alt}を拡大表示`}
         >
           <Image
-            src={img.src}
+            src={img.imageUrl}
             alt={img.alt}
             fill
             sizes="(max-width: 640px) 90vw, 384px"
             className="object-cover"
             priority={current === 0}
           />
-          {/* タップヒント */}
-          <div className="absolute inset-0 flex items-end justify-center pb-4 pointer-events-none">
-            <span className="glass text-xs text-white/70 px-3 py-1 opacity-0 group-hover:opacity-100">
-              タップで拡大
-            </span>
-          </div>
         </div>
 
         {/* 前へ / 次へ ボタン */}
@@ -95,12 +82,12 @@ export default function MenuSection() {
 
         {/* ページカウンター */}
         <p className="text-center text-white/40 text-xs mt-3">
-          {current + 1} / {MENU_IMAGES.length}
+          {current + 1} / {items.length}
         </p>
 
         {/* ドットナビ */}
         <div className="flex justify-center gap-1.5 mt-2 flex-wrap">
-          {MENU_IMAGES.map((_, i) => (
+          {items.map((_, i) => (
             <button
               key={i}
               onClick={() => setCurrent(i)}
@@ -119,7 +106,7 @@ export default function MenuSection() {
       {selected && (
         <Modal onClose={() => setSelected(null)}>
           <Image
-            src={selected.src}
+            src={selected.imageUrl}
             alt={selected.alt}
             width={800}
             height={1067}

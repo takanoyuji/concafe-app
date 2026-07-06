@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const cast = await prisma.cast.findUnique({
     where: { id },
-    include: { store: { select: { name: true } } },
+    select: { name: true, bio: true, store: { select: { name: true } } },
   });
   if (!cast) return {};
   return {
@@ -27,7 +27,11 @@ export default async function CastDetailPage({ params }: Props) {
   const { id } = await params;
   const cast = await prisma.cast.findUnique({
     where: { id },
-    include: { store: true },
+    select: {
+      id: true, name: true, bio: true, imageUrl: true,
+      twitterUrl: true, instagramUrl: true, tiktokUrl: true,
+      store: { select: { name: true, slug: true } },
+    },
   });
 
   if (!cast) notFound();

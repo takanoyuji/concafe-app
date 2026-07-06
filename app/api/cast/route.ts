@@ -5,7 +5,14 @@ import { CastSchema } from "@/lib/validations";
 
 export async function GET() {
   const casts = await prisma.cast.findMany({
-    include: { store: { select: { id: true, name: true, slug: true } } },
+    select: {
+      id: true, name: true, bio: true, imageUrl: true,
+      storeId: true, order: true,
+      twitterUrl: true, instagramUrl: true, tiktokUrl: true,
+      createdAt: true, updatedAt: true,
+      store: { select: { id: true, name: true, slug: true } },
+      // rank / airShiftName / exemptFromCommuteRule は除外（給与情報）
+    },
     orderBy: [{ storeId: "asc" }, { order: "asc" }],
   });
   return NextResponse.json({ casts });

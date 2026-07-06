@@ -1,26 +1,26 @@
 import { prisma } from "@/lib/prisma";
 
 export async function getUserBalance(userId: string): Promise<number> {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-  const [granted, gifted] = await Promise.all([
+  const [granted, gifted, reset] = await Promise.all([
     prisma.pointLedger.aggregate({
-      where: { type: "GRANT", toUserId: userId, createdAt: { gte: startOfMonth, lt: endOfMonth } },
+      where: { type: "GRANT", toUserId: userId },
       _sum: { amount: true },
     }),
     prisma.pointLedger.aggregate({
-      where: { type: "GIFT", fromUserId: userId, createdAt: { gte: startOfMonth, lt: endOfMonth } },
+      where: { type: "GIFT", fromUserId: userId },
+      _sum: { amount: true },
+    }),
+    prisma.pointLedger.aggregate({
+      where: { type: "MONTHLY_RESET", toUserId: userId },
       _sum: { amount: true },
     }),
   ]);
-  return (granted._sum.amount ?? 0) - (gifted._sum.amount ?? 0);
+  return (granted._sum.amount ?? 0) - (gifted._sum.amount ?? 0) - (reset._sum.amount ?? 0);
 }
 
-export async function getCumulativeGiftTotal(userId: string): Promise<number> {
+export async function getCumulativeGrantTotal(userId: string): Promise<number> {
   const result = await prisma.pointLedger.aggregate({
-    where: { type: "GIFT", fromUserId: userId },
+    where: { type: "GRANT", toUserId: userId },
     _sum: { amount: true },
   });
   return result._sum.amount ?? 0;
@@ -86,7 +86,7 @@ export async function getMonthlyRanking(
 }
 
 export async function getUserTitle(userId: string) {
-  const cumulativeTotal = await getCumulativeGiftTotal(userId);
+  const cumulativeTotal = await getCumulativeGrantTotal(userId);
   const titles = await prisma.title.findMany({ orderBy: { threshold: "desc" } });
   const current = titles.find((t) => cumulativeTotal >= t.threshold) ?? null;
   const next =

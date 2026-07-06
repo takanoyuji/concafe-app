@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { email, password } = parsed.data;
+  const { email, password, birthdate, nickname, favoriteCast1Id, favoriteCast2Id, favoriteStoreId } = parsed.data;
 
   // 2. DB 操作（ここのエラーは 500 にする）
   let token: string;
@@ -37,7 +37,16 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
-      data: { email, passwordHash, role: "CUSTOMER" },
+      data: {
+        email,
+        passwordHash,
+        role: "CUSTOMER",
+        birthdate: new Date(birthdate),
+        name: nickname,
+        favoriteCast1Id: favoriteCast1Id === "undecided" ? null : (favoriteCast1Id || null),
+        favoriteCast2Id: favoriteCast2Id || null,
+        favoriteStoreId: favoriteStoreId || null,
+      },
     });
 
     token = randomBytes(32).toString("hex");

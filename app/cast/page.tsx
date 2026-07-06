@@ -8,7 +8,13 @@ export const dynamic = "force-dynamic";
 
 export default async function CastListPage() {
   const stores = await prisma.store.findMany({
-    include: { casts: { orderBy: { order: "asc" } } },
+    select: {
+      id: true, name: true, slug: true, createdAt: true,
+      casts: {
+        select: { id: true, name: true, bio: true, imageUrl: true },
+        orderBy: { order: "asc" },
+      },
+    },
     orderBy: { createdAt: "asc" },
   });
 
