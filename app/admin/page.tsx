@@ -13,7 +13,7 @@ interface CastRank { id: string; name: string; backRate: number; order: number }
 interface CastResult { castName: string; rank: string; basicPay: number; commute: number; grossProfit: number; totalSales: number; back: number; salary: number; payment: number }
 interface SalarySummary { casts: CastResult[]; tc: number; totalSales: number; grossProfit: number; laborCost: number; contributionProfit: number; workHours: string }
 
-type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "castranks" | "salary";
+type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary";
 
 const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, twitterUrl: "", instagramUrl: "", tiktokUrl: "", airShiftName: "", rank: "", exemptFromCommuteRule: false };
 const MENU_EMPTY = { imageUrl: "", alt: "", order: 0 };
@@ -61,6 +61,15 @@ export default function AdminPage() {
   const [wageFile, setWageFile] = useState<File | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [salarySummary, setSalarySummary] = useState<SalarySummary | null>(null);
+
+  // Salary sub-sections
+  const [showRankMgmt, setShowRankMgmt]     = useState(false);
+  const [showCastMgmt, setShowCastMgmt]     = useState(false);
+  const [castMgmtStore, setCastMgmtStore]   = useState("");
+  const [rankCsvFile, setRankCsvFile]       = useState<File | null>(null);
+  const [castCsvFile, setCastCsvFile]       = useState<File | null>(null);
+  // inline edit: castId → {airShiftName, rank}
+  const [castEdits, setCastEdits] = useState<Record<string, { airShiftName: string; rank: string }>>({});
 
   const flash = (m: string, isErr = false) => {
     if (isErr) setErr(m); else setMsg(m);
@@ -280,9 +289,74 @@ export default function AdminPage() {
     }
   };
 
+  // CSV parse helper
+  const parseCsv = (text: string) => {
+    const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return { header: [], rows: [] };
+    const header = lines[0].split(",").map(h => h.trim());
+    const rows = lines.slice(1).map(line => {
+      const cells = line.split(",");
+      const row: Record<string, string> = {};
+      header.forEach((h, i) => { row[h] = (cells[i] ?? "").trim(); });
+      return row;
+    });
+    return { header, rows };
+  };
+
+  const importRanksCsv = async () => {
+    if (!rankCsvFile) return;
+    const text = await rankCsvFile.text();
+    const { rows } = parseCsv(text);
+    const ranks = rows
+      .filter(r => r["ランク名"] || r["ランク"])
+      .map((r, i) => ({
+        name: r["ランク名"] ?? r["ランク"] ?? "",
+        backRate: Number(r["バック率"] ?? "0") / (Number(r["バック率"] ?? "0") > 1 ? 100 : 1),
+        order: i,
+      }));
+    if (ranks.length === 0) { flash("CSVにデータがありません", true); return; }
+    const res = await fetch("/api/admin/cast-ranks/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ranks }),
+    });
+    if (res.ok) { flash(`${ranks.length}件のランクを登録しました`); setRankCsvFile(null); fetchAll(); }
+    else { const d = await res.json(); flash(d.error ?? "エラー", true); }
+  };
+
+  const importCastMasterCsv = async () => {
+    if (!castCsvFile) return;
+    const text = await castCsvFile.text();
+    const { rows } = parseCsv(text);
+    const mapped = rows.map(r => ({
+      name:         r["キャスト名"] ?? "",
+      airShiftName: r["Airシフト"] ?? r["AirShift"] ?? r["airShift"] ?? "",
+      rank:         r["ランク"] ?? "",
+    })).filter(r => r.name);
+    if (mapped.length === 0) { flash("CSVにデータがありません", true); return; }
+    const res = await fetch("/api/admin/cast/bulk-salary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: mapped }),
+    });
+    if (res.ok) { const d = await res.json(); flash(`${d.updated}件を更新しました`); setCastCsvFile(null); fetchAll(); }
+    else { const d = await res.json(); flash(d.error ?? "エラー", true); }
+  };
+
+  const saveCastSalaryField = async (castId: string) => {
+    const edit = castEdits[castId];
+    if (!edit) return;
+    const res = await fetch(`/api/cast/${castId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(edit),
+    });
+    if (res.ok) { flash("保存しました"); fetchAll(); }
+    else { const d = await res.json(); flash(d.error ?? "エラー", true); }
+  };
+
   const TABS: { key: Tab; label: string }[] = [
     { key: "cast",       label: "🐺 キャスト" },
-    { key: "castranks",  label: "🏅 キャストランク" },
     { key: "salary",     label: "💴 給与計算" },
     { key: "points",     label: "⭐ ポイント付与" },
     { key: "titles",     label: "🏆 称号マスタ" },
@@ -430,58 +504,155 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* キャストランク管理 */}
-        {tab === "castranks" && (
-          <div className="space-y-6">
-            <div className="glass p-6 space-y-4">
-              <h2 className="font-bold text-star-300">{editingRank ? "ランク編集" : "ランク追加"}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs text-white/60 block mb-1">ランク名 <span className="text-neon-pink">*</span></label>
-                  <input className="input-field" value={rankForm.name} onChange={e => setRankForm(p => ({ ...p, name: e.target.value }))} placeholder="例: ゴールド" />
-                </div>
-                <div>
-                  <label className="text-xs text-white/60 block mb-1">バック率（%） <span className="text-neon-pink">*</span></label>
-                  <input
-                    type="number"
-                    className="input-field"
-                    value={Math.round(rankForm.backRate * 100)}
-                    onChange={e => setRankForm(p => ({ ...p, backRate: Number(e.target.value) / 100 }))}
-                    min={0} max={100} step={1}
-                    placeholder="例: 50"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-white/60 block mb-1">表示順</label>
-                  <input type="number" className="input-field" value={rankForm.order} onChange={e => setRankForm(p => ({ ...p, order: Number(e.target.value) }))} />
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={saveRank} className="btn-primary text-sm">{editingRank ? "更新" : "追加"}</button>
-                {editingRank && <button onClick={() => { setEditingRank(null); setRankForm(RANK_EMPTY); }} className="btn-secondary text-sm">キャンセル</button>}
-              </div>
-            </div>
-            <div className="space-y-2">
-              {castRanks.map(r => (
-                <div key={r.id} className="glass-dark p-4 flex items-center gap-4">
-                  <div className="flex-1">
-                    <div className="font-bold text-white">{r.name}</div>
-                    <div className="text-xs text-white/40">バック率: {(r.backRate * 100).toFixed(0)}%　順番: {r.order}</div>
-                  </div>
-                  <button onClick={() => { setRankForm({ name: r.name, backRate: r.backRate, order: r.order }); setEditingRank(r.id); }} className="text-neon-violet text-sm hover:text-neon-purple">編集</button>
-                  <button onClick={() => deleteRank(r.id)} className="text-neon-pink text-sm hover:text-red-400">削除</button>
-                </div>
-              ))}
-              {castRanks.length === 0 && (
-                <p className="text-white/40 text-sm text-center py-8">ランクが登録されていません</p>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* 給与計算 */}
         {tab === "salary" && (
           <div className="space-y-6">
+
+            {/* キャストランク管理 */}
+            <div className="glass p-4">
+              <button
+                className="w-full flex items-center justify-between text-left"
+                onClick={() => setShowRankMgmt(p => !p)}
+              >
+                <span className="font-bold text-star-300">🏅 キャストランク管理</span>
+                <span className="text-white/40 text-sm">{showRankMgmt ? "▲ 閉じる" : "▼ 開く"}</span>
+              </button>
+              {showRankMgmt && (
+                <div className="mt-4 space-y-4">
+                  {/* CSV インポート */}
+                  <div className="glass-dark p-4 space-y-2">
+                    <p className="text-xs text-white/50">CSVインポート（ヘッダー: <code>ランク名,バック率</code>、バック率は%で入力）</p>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="file" accept=".csv"
+                        className="input-field text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-neon-violet/20 file:text-neon-violet cursor-pointer flex-1"
+                        onChange={e => setRankCsvFile(e.target.files?.[0] ?? null)}
+                      />
+                      <button onClick={importRanksCsv} disabled={!rankCsvFile} className="btn-primary text-sm whitespace-nowrap">インポート</button>
+                    </div>
+                  </div>
+                  {/* 手動追加フォーム */}
+                  <div className="space-y-3">
+                    <p className="text-xs text-white/50 font-bold">{editingRank ? "ランク編集" : "手動追加"}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">ランク名 <span className="text-neon-pink">*</span></label>
+                        <input className="input-field" value={rankForm.name} onChange={e => setRankForm(p => ({ ...p, name: e.target.value }))} placeholder="例: ゴールド" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">バック率（%） <span className="text-neon-pink">*</span></label>
+                        <input type="number" className="input-field" value={Math.round(rankForm.backRate * 100)} onChange={e => setRankForm(p => ({ ...p, backRate: Number(e.target.value) / 100 }))} min={0} max={100} step={1} placeholder="例: 50" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">表示順</label>
+                        <input type="number" className="input-field" value={rankForm.order} onChange={e => setRankForm(p => ({ ...p, order: Number(e.target.value) }))} />
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={saveRank} className="btn-primary text-sm">{editingRank ? "更新" : "追加"}</button>
+                      {editingRank && <button onClick={() => { setEditingRank(null); setRankForm(RANK_EMPTY); }} className="btn-secondary text-sm">キャンセル</button>}
+                    </div>
+                  </div>
+                  {/* 一覧 */}
+                  <div className="space-y-2">
+                    {castRanks.map(r => (
+                      <div key={r.id} className="glass-dark p-3 flex items-center gap-4">
+                        <div className="flex-1">
+                          <span className="font-bold text-white">{r.name}</span>
+                          <span className="text-xs text-white/40 ml-3">バック率: {(r.backRate * 100).toFixed(0)}%　順番: {r.order}</span>
+                        </div>
+                        <button onClick={() => { setRankForm({ name: r.name, backRate: r.backRate, order: r.order }); setEditingRank(r.id); }} className="text-neon-violet text-sm hover:text-neon-purple">編集</button>
+                        <button onClick={() => deleteRank(r.id)} className="text-neon-pink text-sm hover:text-red-400">削除</button>
+                      </div>
+                    ))}
+                    {castRanks.length === 0 && <p className="text-white/40 text-sm text-center py-4">ランクが登録されていません</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* キャストマスタ管理 */}
+            <div className="glass p-4">
+              <button
+                className="w-full flex items-center justify-between text-left"
+                onClick={() => setShowCastMgmt(p => !p)}
+              >
+                <span className="font-bold text-star-300">👥 キャストマスタ管理</span>
+                <span className="text-white/40 text-sm">{showCastMgmt ? "▲ 閉じる" : "▼ 開く"}</span>
+              </button>
+              {showCastMgmt && (
+                <div className="mt-4 space-y-4">
+                  {/* CSV インポート */}
+                  <div className="glass-dark p-4 space-y-2">
+                    <p className="text-xs text-white/50">CSVインポート（ヘッダー: <code>キャスト名,Airシフト,ランク</code>）</p>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="file" accept=".csv"
+                        className="input-field text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-neon-violet/20 file:text-neon-violet cursor-pointer flex-1"
+                        onChange={e => setCastCsvFile(e.target.files?.[0] ?? null)}
+                      />
+                      <button onClick={importCastMasterCsv} disabled={!castCsvFile} className="btn-primary text-sm whitespace-nowrap">インポート</button>
+                    </div>
+                  </div>
+                  {/* 店舗フィルター */}
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={() => setCastMgmtStore("")} className={`px-3 py-1 rounded-full text-sm border transition-all ${castMgmtStore === "" ? "border-neon-violet text-neon-violet" : "border-white/20 text-white/60"}`}>全店舗</button>
+                    {stores.map(s => (
+                      <button key={s.id} onClick={() => setCastMgmtStore(s.name)} className={`px-3 py-1 rounded-full text-sm border transition-all ${castMgmtStore === s.name ? "border-neon-violet text-neon-violet" : "border-white/20 text-white/60"}`}>{s.name}</button>
+                    ))}
+                  </div>
+                  {/* キャスト一覧 (inline edit) */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-white/50 text-xs border-b border-white/10">
+                          <th className="text-left pb-2">キャスト名</th>
+                          <th className="text-left pb-2">店舗</th>
+                          <th className="text-left pb-2">Airシフト氏名</th>
+                          <th className="text-left pb-2">ランク</th>
+                          <th className="pb-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {casts
+                          .filter(c => !castMgmtStore || c.store.name === castMgmtStore)
+                          .map(c => {
+                            const edit = castEdits[c.id] ?? { airShiftName: c.airShiftName ?? "", rank: c.rank ?? "" };
+                            return (
+                              <tr key={c.id} className="border-b border-white/5">
+                                <td className="py-2 font-medium text-white">{c.name}</td>
+                                <td className="py-2 text-white/50 text-xs">{c.store.name}</td>
+                                <td className="py-2">
+                                  <input
+                                    className="input-field text-xs py-1 px-2 w-32"
+                                    value={edit.airShiftName}
+                                    onChange={e => setCastEdits(p => ({ ...p, [c.id]: { ...edit, airShiftName: e.target.value } }))}
+                                  />
+                                </td>
+                                <td className="py-2">
+                                  <select
+                                    className="input-field text-xs py-1 px-2 w-28"
+                                    value={edit.rank}
+                                    onChange={e => setCastEdits(p => ({ ...p, [c.id]: { ...edit, rank: e.target.value } }))}
+                                  >
+                                    <option value="">-- 未設定 --</option>
+                                    {castRanks.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                                  </select>
+                                </td>
+                                <td className="py-2">
+                                  <button onClick={() => saveCastSalaryField(c.id)} className="text-neon-violet text-xs hover:text-neon-purple">保存</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 給与計算フォーム */}
             <div className="glass p-6 space-y-4">
               <h2 className="font-bold text-star-300">給与計算</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

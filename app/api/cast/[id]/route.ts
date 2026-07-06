@@ -49,6 +49,26 @@ export async function PUT(
   }
 }
 
+// PATCH: airShiftName / rank / exemptFromCommuteRule のみ部分更新
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session || session.role !== "ADMIN")
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await params;
+  const body = await req.json();
+  const data: Record<string, unknown> = {};
+  if ("airShiftName" in body) data.airShiftName = body.airShiftName;
+  if ("rank"         in body) data.rank          = body.rank;
+  if ("exemptFromCommuteRule" in body) data.exemptFromCommuteRule = body.exemptFromCommuteRule;
+
+  const cast = await prisma.cast.update({ where: { id }, data });
+  return NextResponse.json({ cast });
+}
+
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
