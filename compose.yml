@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      # ローカルホストのみ公開（本番ではnginxがリバースプロキシ）
+      # ローカル開発では docker-compose.yml (3000:3000) を使うこと
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
+    volumes:
+      # DB・キャスト画像・メニュー画像を永続化
+      # /data/concafe.db, /data/cast/, /data/menu/ がここに入る
+      # ⚠️ ボリューム名を変更するとデータが消えるので注意！
+      - app_data:/data
+
+volumes:
+  app_data:
