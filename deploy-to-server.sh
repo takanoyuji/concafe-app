@@ -25,6 +25,16 @@ else
 fi
 
 echo ""
+echo "=== デプロイ前バックアップ ==="
+# コンテナ起動時に prisma migrate deploy が走る（Dockerfile の CMD）ため、
+# デプロイ直前のスナップショットを必ず1本残す。
+# バックアップが取れなければデプロイを中止する（pipefail で tee のステータスに隠さない）。
+if ! (set -o pipefail; ./scripts/backup-db.sh 2>&1 | tee -a backups/backup.log); then
+  echo "バックアップに失敗しました。デプロイを中止します。" >&2
+  exit 1
+fi
+
+echo ""
 echo "=== Docker 再ビルド・再起動 ==="
 docker compose build --no-cache
 docker compose up -d --force-recreate
