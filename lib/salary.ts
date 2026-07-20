@@ -20,11 +20,15 @@ export interface CastResult {
 
 export interface SalarySummary {
   casts: CastResult[];
-  tc: number;
-  totalSales: number;
-  grossProfit: number;
-  laborCost: number;
-  contributionProfit: number;
+  totalSalesTaxIncl: number;   // 税込売上合計（外税商品も税込換算）
+  remoteSales: number;         // 遠隔売上（税込）
+  localSales: number;          // その他売上（税込）
+  taxAmount: number;           // 消費税額（売上÷11）
+  grossProfit: number;         // 売上総利益（内税分の税控除済み）
+  purchases: number;           // 仕入（売上税抜 − 売上総利益）
+  castPay: number;             // キャスト給与合計
+  laborCost: number;           // 人件費合計（キャスト+8000）
+  contributionProfit: number;  // 貢献利益
   workHours: string;
 }
 
@@ -83,6 +87,7 @@ function parseCSVLine(line: string): string[] {
 interface SalesRow {
   商品名: string;
   カテゴリー: string;
+  isRemote: boolean;
   税区分: string;
   販売総売上: number;
   粗利総額: number;
@@ -113,13 +118,16 @@ export function calculateSalary(
   const sales: SalesRow[] = salesRaw.map(r => {
     const souuri = toNum(r["販売総売上"]);
     let gross = toNum(r["粗利総額"]);
+    const rawCat = r["カテゴリー"] ?? "";
+    const isRemote = rawCat.startsWith("遠隔_");
     // 内税インボイス: 粗利 -= 売上 × 0.1
     if (r["税区分"]?.trim() === "内税") {
       gross -= souuri * 0.1;
     }
     return {
       商品名: r["商品名"] ?? "",
-      カテゴリー: (r["カテゴリー"] ?? "").replace(/^遠隔_/, ""),
+      カテゴリー: rawCat.replace(/^遠隔_/, ""),
+      isRemote,
       税区分: r["税区分"] ?? "",
       販売総売上: Math.round(souuri),
       粗利総額: gross,
@@ -204,21 +212,20 @@ export function calculateSalary(
   }
 
   // --- 業績サマリー ---
-  // TC計算
-  let tc = 0;
-  try {
-    const tcRow = sales.find(s => s.商品名 === "TC　（1時間）");
-    if (tcRow) tc += tcRow.販売商品数;
-  } catch { tc = 0; }
-  const nomiho = sales.find(s => s.商品名 === "のみほ（30分）");
-  if (nomiho) tc += nomiho.販売商品数 * 0.5;
-  const tc30 = sales.find(s => s.商品名 === "TC(30分）");
-  if (tc30) tc += tc30.販売商品数 * 0.5;
-
-  const totalSalesSum = sales.reduce((a, s) => a + s.販売総売上, 0);
-  const grossProfitSum = sales.reduce((a, s) => a + s.粗利総額, 0);
-  const laborCost = results.reduce((a, r) => a + r.payment, 0) + 8000;
-  const contributionProfit = grossProfitSum - results.reduce((a, r) => a + r.payment, 0);
+  // 外税商品は×1.1して全額税込に統一
+  const taxIncl = (s: SalesRow) => s.税区分?.trim() === "外税" ? Math.round(s.販売総売上 * 1.1) : s.販売総売上;
+  const totalSalesTaxIncl = sales.reduce((a, s) => a + taxIncl(s), 0);
+  const remoteSales       = sales.filter(s => s.isRemote).reduce((a, s) => a + taxIncl(s), 0);
+  const localSales        = totalSalesTaxIncl - remoteSales;
+  // 消費税 = 売上（税込）÷ 11
+  const taxAmount         = Math.round(totalSalesTaxIncl / 11);
+  // 売上総利益 = 粗利総額から内税分の消費税を控除済み
+  const grossProfitSum    = sales.reduce((a, s) => a + s.粗利総額, 0);
+  // 仕入 = 売上（税抜）− 売上総利益
+  const purchases         = totalSalesTaxIncl - taxAmount - grossProfitSum;
+  const castPay           = results.reduce((a, r) => a + r.payment, 0);
+  const laborCost         = castPay + 8000;
+  const contributionProfit = grossProfitSum - castPay;
 
   // 総労働時間
   let totalH = 0;
@@ -236,9 +243,13 @@ export function calculateSalary(
 
   return {
     casts: results,
-    tc,
-    totalSales: totalSalesSum,
+    totalSalesTaxIncl,
+    remoteSales,
+    localSales,
+    taxAmount,
     grossProfit: grossProfitSum,
+    purchases,
+    castPay,
     laborCost,
     contributionProfit,
     workHours,

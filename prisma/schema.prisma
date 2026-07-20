@@ -59,6 +59,86 @@ model Cast {
   ledgerItems PointLedger[]
 }
 
+model CastMaster {
+  id             String   @id @default(cuid())
+  hpName         String   @default("")   // HP上の名前（空ならHP未掲載）
+  rank           String   @default("")
+  retired        Boolean  @default(false) // 退職FLG
+  tokyoAirRegi   String   @default("")   // 東京 エアレジ名
+  tokyoAirShift  String   @default("")   // 東京 エアシフト名
+  osakaAirRegi   String   @default("")   // 大阪 エアレジ名
+  osakaAirShift  String   @default("")   // 大阪 エアシフト名
+  nagoyaAirRegi  String   @default("")   // 名古屋 エアレジ名
+  nagoyaAirShift String   @default("")   // 名古屋 エアシフト名
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  monthlyRanks CastMonthlyRank[]
+}
+
+model CastMonthlyRank {
+  id           String   @id @default(cuid())
+  castMasterId String
+  year         Int
+  month        Int      // 1-12
+  rank         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  castMaster CastMaster @relation(fields: [castMasterId], references: [id], onDelete: Cascade)
+
+  @@unique([castMasterId, year, month])
+}
+
+// 半月ごとの給与計算結果
+model SalaryPeriod {
+  id          String   @id @default(cuid())
+  storeName   String
+  year        Int
+  month       Int      // 1-12
+  half        Int      // 1=前半(1-15日), 2=後半(16日-末日)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([storeName, year, month, half])
+
+  castRecords   SalaryCastRecord[]
+  summaryRecord SalarySummaryRecord?
+}
+
+model SalaryCastRecord {
+  id          String @id @default(cuid())
+  periodId    String
+  castName    String
+  hpName      String @default("")
+  rank        String @default("")
+  basicPay    Float  @default(0)
+  commute     Float  @default(0)
+  back        Float  @default(0)
+  payment     Float  @default(0)
+  grossProfit Float  @default(0)
+  totalSales  Float  @default(0)
+
+  period SalaryPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+}
+
+model SalarySummaryRecord {
+  id                 String @id @default(cuid())
+  periodId           String @unique
+  totalSalesTaxIncl  Float  @default(0)
+  remoteSales        Float  @default(0)
+  localSales         Float  @default(0)
+  taxAmount          Float  @default(0)
+  grossProfit        Float  @default(0)
+  purchases          Float  @default(0)
+  castPay            Float  @default(0)
+  laborCost          Float  @default(0)
+  contributionProfit Float  @default(0)
+  workHours          String @default("")
+
+  period SalaryPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+}
+
 model CastRank {
   id        String   @id @default(cuid())
   name      String   @unique
