@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isPublishedCast } from "@/lib/cast";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -36,6 +37,13 @@ export async function POST(req: NextRequest) {
     favoriteCast1Id === favoriteCast2Id
   ) {
     return NextResponse.json({ error: "推しキャストに同じキャストを2つ設定することはできません" }, { status: 400 });
+  }
+
+  // 非公開キャストは推しに設定できない
+  for (const castId of [favoriteCast1Id, favoriteCast2Id]) {
+    if (castId && !(await isPublishedCast(castId))) {
+      return NextResponse.json({ error: "選択したキャストは現在設定できません" }, { status: 400 });
+    }
   }
 
   await prisma.user.update({

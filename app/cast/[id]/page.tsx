@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 import NavBar from "@/components/ui/NavBar";
 import SnsLink from "@/components/SnsLink";
 
@@ -12,8 +13,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const cast = await prisma.cast.findUnique({
-    where: { id },
+  const cast = await prisma.cast.findFirst({
+    where: { id, ...PUBLIC_CAST_WHERE },
     select: { name: true, bio: true, store: { select: { name: true } } },
   });
   if (!cast) return {};
@@ -25,8 +26,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CastDetailPage({ params }: Props) {
   const { id } = await params;
-  const cast = await prisma.cast.findUnique({
-    where: { id },
+  // 非公開キャストは直リンクでも表示しない（404）
+  const cast = await prisma.cast.findFirst({
+    where: { id, ...PUBLIC_CAST_WHERE },
     select: {
       id: true, name: true, bio: true, imageUrl: true,
       twitterUrl: true, instagramUrl: true, tiktokUrl: true,

@@ -2,17 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { CastSchema } from "@/lib/validations";
+import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const cast = await prisma.cast.findUnique({
-    where: { id },
+  const session = await getSession();
+  const isAdmin = session?.role === "ADMIN";
+  const cast = await prisma.cast.findFirst({
+    where: isAdmin ? { id } : { id, ...PUBLIC_CAST_WHERE },
     select: {
       id: true, name: true, bio: true, imageUrl: true,
-      storeId: true, order: true,
+      storeId: true, order: true, isPublished: true,
       twitterUrl: true, instagramUrl: true, tiktokUrl: true,
       createdAt: true, updatedAt: true,
       store: { select: { id: true, name: true, slug: true } },

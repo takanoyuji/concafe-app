@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 
 export async function getUserBalance(userId: string): Promise<number> {
   const [granted, gifted, reset] = await Promise.all([
@@ -28,7 +29,7 @@ export async function getCumulativeGrantTotal(userId: string): Promise<number> {
 
 export async function getCastRanking(storeId?: string) {
   const casts = await prisma.cast.findMany({
-    where: storeId ? { storeId } : undefined,
+    where: { ...PUBLIC_CAST_WHERE, ...(storeId ? { storeId } : {}) },
     include: {
       ledgerItems: { where: { type: "GIFT" }, select: { amount: true } },
       store: { select: { name: true, slug: true } },
@@ -60,7 +61,7 @@ export async function getMonthlyRanking(
   const endOfMonth = new Date(y, m + 1, 1);
 
   const casts = await prisma.cast.findMany({
-    where: storeId ? { storeId } : undefined,
+    where: { ...PUBLIC_CAST_WHERE, ...(storeId ? { storeId } : {}) },
     include: {
       ledgerItems: {
         where: {

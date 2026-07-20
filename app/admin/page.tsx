@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import NavBar from "@/components/ui/NavBar";
 
-interface Cast { id: string; name: string; bio: string; imageUrl: string; storeId: string; store: { name: string }; airShiftName?: string | null; rank?: string | null; exemptFromCommuteRule?: boolean }
+interface Cast { id: string; name: string; bio: string; imageUrl: string; storeId: string; order?: number; isPublished?: boolean; store: { name: string }; airShiftName?: string | null; rank?: string | null; exemptFromCommuteRule?: boolean }
 interface Store { id: string; slug: string; name: string }
 interface Title { id: string; name: string; threshold: number; order: number }
 interface Customer { id: string; email: string; emailVerified: boolean; birthdate: string | null; ageVerified: boolean; balance: number; createdAt: string; name: string | null; favoriteCast1Name: string | null; favoriteCast2Name: string | null }
@@ -28,7 +28,7 @@ interface PeriodDetail { id: string; storeName: string; year: number; month: num
 
 type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary";
 
-const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, twitterUrl: "", instagramUrl: "", tiktokUrl: "", airShiftName: "", rank: "", exemptFromCommuteRule: false };
+const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, isPublished: true, twitterUrl: "", instagramUrl: "", tiktokUrl: "", airShiftName: "", rank: "", exemptFromCommuteRule: false };
 const MENU_EMPTY = { imageUrl: "", alt: "", order: 0 };
 const RANK_EMPTY = { name: "", backRate: 0, order: 0 };
 
@@ -124,7 +124,7 @@ export default function AdminPage() {
   const fetchAll = useCallback(async () => {
     const slugs = ["tokyo", "osaka", "nagoya"];
     const [c, t, u, m, resets, ranks, masters, history, ...storeResults] = await Promise.all([
-      fetch("/api/cast").then(r => r.json()),
+      fetch("/api/cast?includeHidden=1").then(r => r.json()),
       fetch("/api/titles").then(r => r.json()),
       fetch("/api/admin/users").then(r => r.json()).catch(() => ({ users: [] })),
       fetch("/api/menu").then(r => r.json()),
@@ -213,7 +213,8 @@ export default function AdminPage() {
     const storeSlug = stores.find(s => s.name === cast.store.name)?.slug ?? "";
     setCastForm({
       name: cast.name, bio: cast.bio, imageUrl: cast.imageUrl,
-      storeId: storeSlug, order: 0,
+      storeId: storeSlug, order: cast.order ?? 0,
+      isPublished: cast.isPublished ?? true,
       twitterUrl: cast.twitterUrl ?? "",
       instagramUrl: cast.instagramUrl ?? "",
       tiktokUrl: cast.tiktokUrl ?? "",
@@ -820,6 +821,18 @@ export default function AdminPage() {
                 <div className="sm:col-span-2 flex items-center gap-2">
                   <input
                     type="checkbox"
+                    id="isPublished"
+                    checked={castForm.isPublished}
+                    onChange={e => setCastForm(p => ({ ...p, isPublished: e.target.checked }))}
+                    className="w-4 h-4 accent-neon-violet"
+                  />
+                  <label htmlFor="isPublished" className="text-xs text-white/60 cursor-pointer">
+                    HPに表示する（オフにするとトップ・キャスト一覧・店舗ページ・ランキング・ギフト送付先・推し選択のすべてから非表示になります）
+                  </label>
+                </div>
+                <div className="sm:col-span-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
                     id="exemptFromCommuteRule"
                     checked={castForm.exemptFromCommuteRule}
                     onChange={e => setCastForm(p => ({ ...p, exemptFromCommuteRule: e.target.checked }))}
@@ -851,7 +864,12 @@ export default function AdminPage() {
                     <div className="w-12 h-14 rounded-lg flex-shrink-0 bg-gradient-to-br from-neon-violet to-neon-purple flex items-center justify-center text-xl">🐺</div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-white truncate">{cast.name}</div>
+                    <div className="font-bold text-white truncate flex items-center gap-2">
+                      {cast.name}
+                      {cast.isPublished === false && (
+                        <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-white/10 text-white/50 flex-shrink-0">HP非表示</span>
+                      )}
+                    </div>
                     <div className="text-xs text-white/40">{cast.store.name}{cast.rank ? ` · ${cast.rank}` : ""}</div>
                   </div>
                   <button onClick={() => editCast(cast)} className="text-neon-violet text-sm hover:text-neon-purple flex-shrink-0">編集</button>

@@ -1,9 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 import CastTabs from "./CastTabs";
 
 export default async function CastSection() {
   const casts = await prisma.cast.findMany({
-    include: { store: { select: { id: true, name: true, slug: true } } },
+    where: PUBLIC_CAST_WHERE,
+    // 給与情報（airShiftName / rank / exemptFromCommuteRule）は公開しない
+    select: {
+      id: true, name: true, bio: true, imageUrl: true, storeId: true, order: true,
+      twitterUrl: true, instagramUrl: true, tiktokUrl: true,
+      store: { select: { id: true, name: true, slug: true } },
+    },
     orderBy: [{ storeId: "asc" }, { order: "asc" }],
   });
 

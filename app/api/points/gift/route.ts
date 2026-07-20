@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { GiftPointsSchema } from "@/lib/validations";
 import { getUserBalance } from "@/lib/points";
+import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -19,7 +20,8 @@ export async function POST(req: NextRequest) {
 
   const { castId, amount, idempotencyKey } = parsed.data;
 
-  const cast = await prisma.cast.findUnique({ where: { id: castId } });
+  // 非公開キャストにはギフトを送れない
+  const cast = await prisma.cast.findFirst({ where: { id: castId, ...PUBLIC_CAST_WHERE } });
   if (!cast) {
     return NextResponse.json({ error: "キャストが見つかりません" }, { status: 404 });
   }

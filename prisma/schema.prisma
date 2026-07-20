@@ -46,6 +46,7 @@ model Cast {
   imageUrl             String
   storeId              String
   order                Int      @default(0)
+  isPublished          Boolean  @default(true) // false = HP（公開ページ）に一切表示しない
   twitterUrl           String?
   instagramUrl         String?
   tiktokUrl            String?

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getUserBalance, getUserTitle } from "@/lib/points";
+import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 import NavBar from "@/components/ui/NavBar";
 
 export const dynamic = "force-dynamic";
@@ -45,10 +46,10 @@ export default async function MePage() {
       ? prisma.store.findUnique({ where: { id: user.favoriteStoreId }, select: { name: true } })
       : null,
     user.favoriteCast1Id
-      ? prisma.cast.findUnique({ where: { id: user.favoriteCast1Id }, select: { name: true } })
+      ? prisma.cast.findFirst({ where: { id: user.favoriteCast1Id, ...PUBLIC_CAST_WHERE }, select: { name: true } })
       : null,
     user.favoriteCast2Id
-      ? prisma.cast.findUnique({ where: { id: user.favoriteCast2Id }, select: { name: true } })
+      ? prisma.cast.findFirst({ where: { id: user.favoriteCast2Id, ...PUBLIC_CAST_WHERE }, select: { name: true } })
       : null,
   ]);
 

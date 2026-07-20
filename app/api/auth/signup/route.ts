@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { SignupSchema } from "@/lib/validations";
 import { sendVerificationEmail } from "@/lib/email";
+import { isPublishedCast } from "@/lib/cast";
 
 export async function POST(req: NextRequest) {
   // 1. バリデーション
@@ -23,6 +24,13 @@ export async function POST(req: NextRequest) {
   }
 
   const { email, password, birthdate, nickname, favoriteCast1Id, favoriteCast2Id, favoriteStoreId } = parsed.data;
+
+  // 非公開キャストは推しに設定できない
+  for (const castId of [favoriteCast1Id, favoriteCast2Id]) {
+    if (castId && castId !== "undecided" && !(await isPublishedCast(castId))) {
+      return NextResponse.json({ error: "選択したキャストは現在設定できません" }, { status: 400 });
+    }
+  }
 
   // 2. DB 操作（ここのエラーは 500 にする）
   let token: string;

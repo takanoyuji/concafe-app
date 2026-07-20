@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 import CastLink from "@/components/CastLink";
 import MapLink from "@/components/MapLink";
 import { getMonthlyRanking } from "@/lib/points";
@@ -30,7 +31,9 @@ export default async function StorePage({ params }: Props) {
   const { slug } = await params;
   const store = await prisma.store.findUnique({
     where: { slug },
-    include: { casts: { orderBy: { order: "asc" } } },
+    include: {
+      casts: { where: PUBLIC_CAST_WHERE, orderBy: { order: "asc" } },
+    },
   });
 
   if (!store) notFound();

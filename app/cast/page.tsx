@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 import NavBar from "@/components/ui/NavBar";
 import CastLink from "@/components/CastLink";
 
@@ -11,6 +12,7 @@ export default async function CastListPage() {
     select: {
       id: true, name: true, slug: true, createdAt: true,
       casts: {
+        where: PUBLIC_CAST_WHERE,
         select: { id: true, name: true, bio: true, imageUrl: true },
         orderBy: { order: "asc" },
       },
