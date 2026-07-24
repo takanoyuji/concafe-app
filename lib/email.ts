@@ -1,6 +1,11 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// ビルド時（page data collection）に API キーが無い環境でも落ちないよう遅延生成する
+let resendClient: Resend | null = null;
+function getResend() {
+  if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
+}
 const FROM = process.env.MAIL_FROM ?? "星狼 <info@mail.xing-lang.com>";
 // NEXT_PUBLIC_ はビルド時に焼き込まれるため、サーバー専用URLは APP_URL を使う
 const BASE = process.env.APP_URL ?? "http://localhost:3000";
@@ -28,7 +33,7 @@ export async function sendEmail({
     );
   });
 
-  const send = resend.emails.send({
+  const send = getResend().emails.send({
     from: FROM,
     to,
     subject,

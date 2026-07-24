@@ -22,12 +22,17 @@ export function isGAEnabled(): boolean {
   return !!getGAId();
 }
 
-/** ページビュー送信（App Router のクライアント遷移用） */
+/**
+ * ページビュー送信（App Router のクライアント遷移用）
+ * 同一 ID への config 再呼び出しでは GA4 は page_view を送らないため、
+ * 明示的に page_view イベントとして送る。
+ */
 export function pageview(path: string, title?: string): void {
   const id = getGAId();
   if (!id || typeof window === "undefined" || !window.gtag) return;
-  window.gtag("config", id, {
+  window.gtag("event", "page_view", {
     page_path: path,
+    page_location: window.location.href,
     ...(title && { page_title: title }),
   });
 }
