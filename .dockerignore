@@ -1,0 +1,10 @@
+.git
+node_modules
+.next
+.env*
+README.md
+# ローカル開発用DB・バックアップ・イメージtarをビルドコンテキストに含めない
+dev.db
+*.db
+*.tar
+backups
