@@ -6,9 +6,9 @@
 
 | ブランチ | 中身 |
 |---|---|
-| `recovery/restore-admin-20260725` | **concafe 本体の正。本番で動いているのはこれ** |
+| `production` | **concafe 本体の正。本番で動いているのはこれ。GitHub のデフォルトブランチ** |
 | `origin/main` | VLiverLab 系統（四目並べ入り）。`origin/archive/vliverlab` と同一コミット |
-| `feature/cast-visibility` | 復旧ブランチの起点（2026-07-20 時点） |
+| `feature/cast-visibility` | `production` の起点（2026-07-20 時点） |
 
 `origin/main` には給与計算・キャストランク・メニュー管理・リセット履歴が**存在しない**。
 これをデプロイすると管理画面の機能が丸ごと消える。
