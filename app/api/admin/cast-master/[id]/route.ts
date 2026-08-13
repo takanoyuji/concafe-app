@@ -12,7 +12,23 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
-  const master = await prisma.castMaster.update({ where: { id }, data: body });
+
+  // 更新を許可する項目だけを明示的に拾う。
+  // castCode は外部システム（remodri 等）がキャストを参照する不変キーなので、
+  // ここから書き換えられないようにする。undefined の項目は変更されない。
+  const data = {
+    hpName:         body.hpName,
+    rank:           body.rank,
+    retired:        body.retired,
+    tokyoAirRegi:   body.tokyoAirRegi,
+    tokyoAirShift:  body.tokyoAirShift,
+    osakaAirRegi:   body.osakaAirRegi,
+    osakaAirShift:  body.osakaAirShift,
+    nagoyaAirRegi:  body.nagoyaAirRegi,
+    nagoyaAirShift: body.nagoyaAirShift,
+  };
+
+  const master = await prisma.castMaster.update({ where: { id }, data });
   return NextResponse.json({ master });
 }
 

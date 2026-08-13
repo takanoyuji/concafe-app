@@ -62,6 +62,9 @@ model Cast {
 
 model CastMaster {
   id             String   @id @default(cuid())
+  // 外部システム（remodri 等）から参照するための不変コード。C0001 形式。
+  // 一度振ったら変えない。採番は lib/castCode.ts が行う（DB のデフォルトは使わない）
+  castCode       String   @unique @default("")
   hpName         String   @default("")   // HP上の名前（空ならHP未掲載）
   rank           String   @default("")
   retired        Boolean  @default(false) // 退職FLG

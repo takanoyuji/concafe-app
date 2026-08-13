@@ -10,7 +10,7 @@ interface Customer { id: string; email: string; emailVerified: boolean; birthdat
 interface MenuItem { id: string; imageUrl: string; alt: string; order: number }
 interface ResetLog { id: string; userId: string | null; email: string | null; amount: number; idempotencyKey: string | null; createdAt: string }
 interface CastRank { id: string; name: string; backRate: number; order: number }
-interface CastMaster { id: string; hpName: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; }
+interface CastMaster { id: string; castCode: string; hpName: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; }
 interface CastResult { castName: string; rank: string; basicPay: number; commute: number; grossProfit: number; totalSales: number; back: number; salary: number; payment: number }
 interface SalarySummary { casts: CastResult[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; purchases: number; castPay: number; laborCost: number; contributionProfit: number; workHours: string }
 interface AggResult { masterId: string; hpName: string; rank: string; tokyo: number; osaka: number; nagoya: number; total: number; }
@@ -540,28 +540,39 @@ export default function AdminPage() {
     if (!castMasterCsvFile) return;
     const text = await readCsvFile(castMasterCsvFile);
     const { rows } = parseCsv(text);
+    // 列が無い場合は undefined のまま送る（サーバー側で「変更しない」と解釈される）
     const mapped = rows.map(r => ({
-      hpName:         r["HP名"]        ?? "",
-      rank:           r["ランク"]       ?? "",
-      tokyoAirRegi:   r["東京エアレジ"]  ?? "",
-      tokyoAirShift:  r["東京エアシフト"] ?? "",
-      osakaAirRegi:   r["大阪エアレジ"]  ?? "",
-      osakaAirShift:  r["大阪エアシフト"] ?? "",
-      nagoyaAirRegi:  r["名古屋エアレジ"] ?? "",
-      nagoyaAirShift: r["名古屋エアシフト"] ?? "",
-    })).filter(m => Object.values(m).some(v => v));
-    if (mapped.length === 0) { flash("CSVにデータがありません（ヘッダー: HP名,東京エアレジ,…）", true); return; }
+      castCode:       r["キャストコード"],
+      hpName:         r["HP名"],
+      rank:           r["ランク"],
+      retired:        r["退職"] === undefined ? undefined : ["1", "true", "TRUE", "はい", "○"].includes(r["退職"]),
+      tokyoAirRegi:   r["東京エアレジ"],
+      tokyoAirShift:  r["東京エアシフト"],
+      osakaAirRegi:   r["大阪エアレジ"],
+      osakaAirShift:  r["大阪エアシフト"],
+      nagoyaAirRegi:  r["名古屋エアレジ"],
+      nagoyaAirShift: r["名古屋エアシフト"],
+    })).filter(m => [m.castCode, m.hpName, m.tokyoAirRegi, m.osakaAirRegi, m.nagoyaAirRegi].some(v => v));
+    if (mapped.length === 0) { flash("CSVにデータがありません（ヘッダー: キャストコード,HP名,東京エアレジ,…）", true); return; }
     const res = await fetch("/api/admin/cast-master/bulk", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ masters: mapped }),
     });
-    if (res.ok) { const d = await res.json(); flash(`${d.masters.length}件を登録しました`); setCastMasterCsvFile(null); fetchAll(); }
+    if (res.ok) {
+      const d = await res.json();
+      const retired: { castCode: string; hpName: string }[] = d.retiredCasts ?? [];
+      let msg = `新規${d.created}件 / 更新${d.updated}件`;
+      if (retired.length > 0)
+        msg += ` / CSVに無い${retired.length}件を退職扱いにしました（${retired.map(c => c.hpName || c.castCode).join("、")}）`;
+      flash(msg);
+      setCastMasterCsvFile(null); fetchAll();
+    }
     else { const d = await res.json(); flash(d.error ?? "エラー", true); }
   };
 
   const downloadCastMasterNewCsv = () => {
-    const header = ["HP名", "東京エアレジ", "東京エアシフト", "大阪エアレジ", "大阪エアシフト", "名古屋エアレジ", "名古屋エアシフト", "ランク"];
-    const rows = [header, ...castMasters.map(m => [m.hpName, m.tokyoAirRegi, m.tokyoAirShift, m.osakaAirRegi, m.osakaAirShift, m.nagoyaAirRegi, m.nagoyaAirShift, m.rank])];
+    const header = ["キャストコード", "HP名", "東京エアレジ", "東京エアシフト", "大阪エアレジ", "大阪エアシフト", "名古屋エアレジ", "名古屋エアシフト", "ランク", "退職"];
+    const rows = [header, ...castMasters.map(m => [m.castCode, m.hpName, m.tokyoAirRegi, m.tokyoAirShift, m.osakaAirRegi, m.osakaAirShift, m.nagoyaAirRegi, m.nagoyaAirShift, m.rank, m.retired ? "1" : ""])];
     downloadCsv("キャストマスタ.csv", rows);
   };
 
@@ -1004,9 +1015,10 @@ export default function AdminPage() {
                   </div>
                   {/* マスタ一覧 (inline edit) */}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs min-w-[950px]">
+                    <table className="w-full text-xs min-w-[1030px]">
                       <thead>
                         <tr className="text-white/50 border-b border-white/10">
+                          <th className="text-left pb-2 pr-2">コード</th>
                           <th className="text-left pb-2 pr-2">HP名</th>
                           <th className="text-left pb-2 pr-2">東京<br/>エアレジ</th>
                           <th className="text-left pb-2 pr-2">東京<br/>エアシフト</th>
@@ -1033,6 +1045,8 @@ export default function AdminPage() {
                           );
                           return (
                             <tr key={m.id} className={`border-b border-white/5 ${m.retired ? "opacity-40" : ""} ${changed ? "bg-neon-violet/5" : ""}`}>
+                              {/* castCode は外部システムが参照する不変コードなので編集させない */}
+                              <td className="py-1 pr-2 font-mono text-white/40 whitespace-nowrap">{m.castCode}</td>
                               <td className="py-1 pr-2">{field("hpName")}</td>
                               <td className="py-1 pr-2">{field("tokyoAirRegi")}</td>
                               <td className="py-1 pr-2">{field("tokyoAirShift")}</td>
