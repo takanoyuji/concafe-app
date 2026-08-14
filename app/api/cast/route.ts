@@ -23,8 +23,11 @@ export async function GET(req: NextRequest) {
         select: { isPrimary: true, store: { select: { id: true, name: true, slug: true } } },
         orderBy: { isPrimary: "desc" },
       },
-      // 給与情報は管理者のみ返す
-      ...(isAdmin && { airShiftName: true, rank: true, exemptFromCommuteRule: true }),
+      // 給与情報とコード・退職状態は管理者のみ返す
+      ...(isAdmin && {
+        castCode: true, retired: true,
+        airShiftName: true, rank: true, exemptFromCommuteRule: true,
+      }),
     },
     orderBy: [{ order: "asc" }, { name: "asc" }],
   });
