@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // 認証はテストごとに差し替える
+const SYNC_STORE_A = "sync-test-a";
+const SYNC_STORE_B = "sync-test-b";
+
 const session = vi.hoisted(() => ({ current: null as null | { userId: string; role: string } }));
 vi.mock("@/lib/auth", () => ({
   getSession: async () => session.current,
@@ -30,10 +33,15 @@ beforeEach(async () => {
   await prisma.castMonthlyRank.deleteMany();
   await prisma.castStore.deleteMany();
   await prisma.cast.deleteMany();
-  await prisma.store.deleteMany();
-  await prisma.store.create({
-    data: { slug: "tokyo", name: "テスト店", address: "-", mapQuery: "-" },
-  });
+  // 店舗は他のテストファイルと同じDBを共有しているので消さない。
+  // このファイル専用の店舗だけを用意する
+  for (const slug of [SYNC_STORE_A, SYNC_STORE_B]) {
+    await prisma.store.upsert({
+      where: { slug },
+      update: {},
+      create: { slug, name: `テスト店(${slug})`, address: "-", mapQuery: "-" },
+    });
+  }
 });
 
 afterEach(() => {
@@ -245,10 +253,8 @@ describe("同期API（サーバー間・読み取り専用）", () => {
 
   it("所属店舗を返す（掛け持ちは複数、主たる店舗が先頭）", async () => {
     vi.stubEnv("SYNC_API_TOKEN", "secret-token");
-    const store = await prisma.store.findFirstOrThrow();
-    const store2 = await prisma.store.create({
-      data: { slug: "sub-store", name: "サブ店", address: "-", mapQuery: "-" },
-    });
+    const store = await prisma.store.findUniqueOrThrow({ where: { slug: SYNC_STORE_A } });
+    const store2 = await prisma.store.findUniqueOrThrow({ where: { slug: SYNC_STORE_B } });
     await prisma.cast.create({
       data: {
         castCode: "C0001",
