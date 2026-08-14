@@ -26,8 +26,15 @@ beforeAll(async () => {
   });
   await prisma.cast.createMany({
     data: [
-      { id: SHOWN, name: "公開キャスト", bio: "b", imageUrl: "/i.png", storeId: STORE_ID, isPublished: true, rank: "ゴールド", airShiftName: "秘密" },
-      { id: HIDDEN, name: "非公開キャスト", bio: "b", imageUrl: "/i.png", storeId: STORE_ID, isPublished: false, rank: "ゴールド", airShiftName: "秘密" },
+      { id: SHOWN, castCode: "C0001", name: "公開キャスト", bio: "b", imageUrl: "/i.png", isPublished: true, rank: "ゴールド", airShiftName: "秘密" },
+      { id: HIDDEN, castCode: "C0002", name: "非公開キャスト", bio: "b", imageUrl: "/i.png", isPublished: false, rank: "ゴールド", airShiftName: "秘密" },
+    ],
+  });
+  // 統合後は所属店舗が中間テーブルになった
+  await prisma.castStore.createMany({
+    data: [
+      { castId: SHOWN, storeId: STORE_ID, isPrimary: true },
+      { castId: HIDDEN, storeId: STORE_ID, isPrimary: true },
     ],
   });
   await prisma.user.create({

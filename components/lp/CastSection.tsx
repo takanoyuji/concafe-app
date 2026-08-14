@@ -3,16 +3,27 @@ import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 import CastTabs from "./CastTabs";
 
 export default async function CastSection() {
-  const casts = await prisma.cast.findMany({
+  const rows = await prisma.cast.findMany({
     where: PUBLIC_CAST_WHERE,
     // 給与情報（airShiftName / rank / exemptFromCommuteRule）は公開しない
     select: {
-      id: true, name: true, bio: true, imageUrl: true, storeId: true, order: true,
+      id: true, name: true, bio: true, imageUrl: true, order: true,
       twitterUrl: true, instagramUrl: true, tiktokUrl: true,
-      store: { select: { id: true, name: true, slug: true } },
+      stores: {
+        select: { isPrimary: true, store: { select: { id: true, name: true, slug: true } } },
+        orderBy: { isPrimary: "desc" },
+      },
     },
-    orderBy: [{ storeId: "asc" }, { order: "asc" }],
+    orderBy: [{ order: "asc" }, { name: "asc" }],
   });
+
+  // 掛け持ちのキャストは所属している全店舗のタブに出す。
+  // 名前の下に出す店舗名は主たる店舗のもの
+  const casts = rows.map(({ stores, ...cast }) => ({
+    ...cast,
+    store: stores.find(s => s.isPrimary)?.store ?? stores[0]?.store ?? { name: "", slug: "" },
+    storeSlugs: stores.map(s => s.store.slug),
+  }));
 
   const stores = [
     { slug: "tokyo",  name: "池袋店" },

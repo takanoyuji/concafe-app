@@ -10,17 +10,28 @@ export async function GET(
   const store = await prisma.store.findUnique({
     where: { slug },
     include: {
-      // 非公開キャストと給与情報は返さない
-      casts: {
-        where: PUBLIC_CAST_WHERE,
+      // 非公開キャストと給与情報は返さない。
+      // 掛け持ちのキャストは所属している全店舗のページに出る
+      castStores: {
+        where: { cast: PUBLIC_CAST_WHERE },
         select: {
-          id: true, name: true, bio: true, imageUrl: true, storeId: true, order: true,
-          twitterUrl: true, instagramUrl: true, tiktokUrl: true,
+          isPrimary: true,
+          cast: {
+            select: {
+              id: true, name: true, bio: true, imageUrl: true, order: true,
+              twitterUrl: true, instagramUrl: true, tiktokUrl: true,
+            },
+          },
         },
-        orderBy: { order: "asc" },
+        orderBy: { cast: { order: "asc" } },
       },
     },
   });
   if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ store });
+
+  // 中間テーブルの存在は外に見せず、これまで通り store.casts の形で返す
+  const { castStores, ...rest } = store;
+  return NextResponse.json({
+    store: { ...rest, casts: castStores.map(cs => ({ ...cs.cast, storeId: store.id })) },
+  });
 }

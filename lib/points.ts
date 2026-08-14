@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PUBLIC_CAST_WHERE } from "@/lib/cast";
+import { PUBLIC_CAST_WHERE, PRIMARY_STORE_INCLUDE, castsOfStore, primaryStoreOf } from "@/lib/cast";
 
 export async function getUserBalance(userId: string): Promise<number> {
   const [granted, gifted, reset] = await Promise.all([
@@ -29,10 +29,10 @@ export async function getCumulativeGrantTotal(userId: string): Promise<number> {
 
 export async function getCastRanking(storeId?: string) {
   const casts = await prisma.cast.findMany({
-    where: { ...PUBLIC_CAST_WHERE, ...(storeId ? { storeId } : {}) },
+    where: { ...PUBLIC_CAST_WHERE, ...(storeId ? castsOfStore(storeId) : {}) },
     include: {
       ledgerItems: { where: { type: "GIFT" }, select: { amount: true } },
-      store: { select: { name: true, slug: true } },
+      ...PRIMARY_STORE_INCLUDE,
     },
   });
 
@@ -41,8 +41,8 @@ export async function getCastRanking(storeId?: string) {
       id: cast.id,
       name: cast.name,
       imageUrl: cast.imageUrl,
-      storeName: cast.store.name,
-      storeSlug: cast.store.slug,
+      storeName: primaryStoreOf(cast).name,
+      storeSlug: primaryStoreOf(cast).slug,
       totalPoints: cast.ledgerItems.reduce((s, l) => s + l.amount, 0),
     }))
     .sort((a, b) => b.totalPoints - a.totalPoints);
@@ -61,7 +61,7 @@ export async function getMonthlyRanking(
   const endOfMonth = new Date(y, m + 1, 1);
 
   const casts = await prisma.cast.findMany({
-    where: { ...PUBLIC_CAST_WHERE, ...(storeId ? { storeId } : {}) },
+    where: { ...PUBLIC_CAST_WHERE, ...(storeId ? castsOfStore(storeId) : {}) },
     include: {
       ledgerItems: {
         where: {
@@ -70,7 +70,7 @@ export async function getMonthlyRanking(
         },
         select: { amount: true },
       },
-      store: { select: { name: true, slug: true } },
+      ...PRIMARY_STORE_INCLUDE,
     },
   });
 
@@ -79,8 +79,8 @@ export async function getMonthlyRanking(
       id: cast.id,
       name: cast.name,
       imageUrl: cast.imageUrl,
-      storeName: cast.store.name,
-      storeSlug: cast.store.slug,
+      storeName: primaryStoreOf(cast).name,
+      storeSlug: primaryStoreOf(cast).slug,
       totalPoints: cast.ledgerItems.reduce((s, l) => s + l.amount, 0),
     }))
     .sort((a, b) => b.totalPoints - a.totalPoints);

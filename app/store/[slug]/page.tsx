@@ -29,14 +29,22 @@ export async function generateStaticParams() {
 
 export default async function StorePage({ params }: Props) {
   const { slug } = await params;
-  const store = await prisma.store.findUnique({
+  const row = await prisma.store.findUnique({
     where: { slug },
     include: {
-      casts: { where: PUBLIC_CAST_WHERE, orderBy: { order: "asc" } },
+      // 掛け持ちのキャストも在籍として表示する
+      castStores: {
+        where: { cast: PUBLIC_CAST_WHERE },
+        include: { cast: true },
+        orderBy: { cast: { order: "asc" } },
+      },
     },
   });
 
-  if (!store) notFound();
+  if (!row) notFound();
+
+  const { castStores, ...storeBase } = row;
+  const store = { ...storeBase, casts: castStores.map(cs => cs.cast) };
 
   const ranking = await getMonthlyRanking(store.id);
   const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(store.mapQuery)}&output=embed&hl=ja`;

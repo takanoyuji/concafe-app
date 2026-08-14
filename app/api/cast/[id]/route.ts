@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { CastSchema } from "@/lib/validations";
-import { PUBLIC_CAST_WHERE } from "@/lib/cast";
+import { PUBLIC_CAST_WHERE, setPrimaryStore } from "@/lib/cast";
 
 export async function GET(
   _req: NextRequest,
@@ -15,15 +15,29 @@ export async function GET(
     where: isAdmin ? { id } : { id, ...PUBLIC_CAST_WHERE },
     select: {
       id: true, name: true, bio: true, imageUrl: true,
-      storeId: true, order: true, isPublished: true,
+      order: true, isPublished: true,
       twitterUrl: true, instagramUrl: true, tiktokUrl: true,
       createdAt: true, updatedAt: true,
-      store: { select: { id: true, name: true, slug: true } },
+      stores: {
+        select: { isPrimary: true, store: { select: { id: true, name: true, slug: true } } },
+        orderBy: { isPrimary: "desc" },
+      },
       // rank / airShiftName / exemptFromCommuteRule は除外（給与情報）
     },
   });
   if (!cast) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ cast });
+
+  // これまで通り storeId / store も返して、利用側の形を変えない
+  const { stores, ...rest } = cast;
+  const primary = stores.find(s => s.isPrimary) ?? stores[0];
+  return NextResponse.json({
+    cast: {
+      ...rest,
+      storeId: primary?.store.id ?? null,
+      store: primary?.store ?? null,
+      stores: stores.map(s => ({ ...s.store, isPrimary: s.isPrimary })),
+    },
+  });
 }
 
 export async function PUT(
@@ -44,7 +58,12 @@ export async function PUT(
   }
 
   try {
-    const cast = await prisma.cast.update({ where: { id }, data: parsed.data });
+    const { storeId, ...castData } = parsed.data;
+    const cast = await prisma.$transaction(async tx => {
+      const updated = await tx.cast.update({ where: { id }, data: castData });
+      await setPrimaryStore(tx, id, storeId);
+      return updated;
+    });
     return NextResponse.json({ cast });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "DB error";

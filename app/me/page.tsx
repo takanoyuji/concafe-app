@@ -85,7 +85,12 @@ export default async function MePage() {
         where: { type: "GIFT" },
         include: {
           fromUser: { select: { email: true } },
-          cast: { select: { name: true, store: { select: { name: true } } } },
+          cast: {
+            select: {
+              name: true,
+              stores: { where: { isPrimary: true }, take: 1, select: { store: { select: { name: true } } } },
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
         take: 200,
@@ -97,7 +102,13 @@ export default async function MePage() {
       }),
     ]);
 
-    allGifts = giftsRaw;
+    // 表示側はこれまで通り cast.store.name を見るので、その形に整えて渡す
+    allGifts = giftsRaw.map(g => ({
+      ...g,
+      cast: g.cast
+        ? { name: g.cast.name, store: { name: g.cast.stores[0]?.store.name ?? "" } }
+        : null,
+    }));
     customers = await Promise.all(
       usersRaw.map(async (u) => ({
         ...u,

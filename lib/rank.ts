@@ -7,20 +7,20 @@ import { prisma } from "@/lib/prisma";
  * 3. 過去データもなければ CastMaster.rank を返す
  */
 export async function getRankForPeriod(
-  castMasterId: string,
+  castId: string,
   year: number,
   month: number
 ): Promise<string> {
   // その月のレコードを検索
   const exact = await prisma.castMonthlyRank.findUnique({
-    where: { castMasterId_year_month: { castMasterId, year, month } },
+    where: { castId_year_month: { castId, year, month } },
   });
   if (exact) return exact.rank;
 
   // 過去の直近レコード
   const prev = await prisma.castMonthlyRank.findFirst({
     where: {
-      castMasterId,
+      castId,
       OR: [
         { year: { lt: year } },
         { year, month: { lt: month } },
@@ -31,8 +31,8 @@ export async function getRankForPeriod(
   if (prev) return prev.rank;
 
   // フォールバック: CastMaster.rank
-  const master = await prisma.castMaster.findUnique({
-    where: { id: castMasterId },
+  const master = await prisma.cast.findUnique({
+    where: { id: castId },
     select: { rank: true },
   });
   return master?.rank ?? "";
@@ -47,7 +47,7 @@ export async function getRanksForPeriod(
   month: number
 ): Promise<Map<string, string>> {
   const [masters, allMonthlyRanks] = await Promise.all([
-    prisma.castMaster.findMany({
+    prisma.cast.findMany({
       where: { retired: false },
       select: { id: true, rank: true },
     }),
@@ -68,7 +68,7 @@ export async function getRanksForPeriod(
   for (const master of masters) {
     // その月のレコードを検索
     const exact = allMonthlyRanks.find(
-      (r) => r.castMasterId === master.id && r.year === year && r.month === month
+      (r) => r.castId === master.id && r.year === year && r.month === month
     );
     if (exact) {
       rankMap.set(master.id, exact.rank);
@@ -76,7 +76,7 @@ export async function getRanksForPeriod(
     }
 
     // 過去の直近レコード（既にyear desc, month descでソート済み）
-    const prev = allMonthlyRanks.find((r) => r.castMasterId === master.id);
+    const prev = allMonthlyRanks.find((r) => r.castId === master.id);
     if (prev) {
       rankMap.set(master.id, prev.rank);
       continue;

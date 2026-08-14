@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 }
 
 // POST /api/admin/cast-master/monthly-rank
-// Body: { year, month, ranks: { castMasterId: string, rank: string }[] }
+// Body: { year, month, ranks: { castId: string, rank: string }[] }
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session || session.role !== "ADMIN")
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   const { year, month, ranks } = body as {
     year: number;
     month: number;
-    ranks: { castMasterId: string; rank: string }[];
+    ranks: { castId: string; rank: string }[];
   };
 
   if (!year || !month || !Array.isArray(ranks))
@@ -43,15 +43,15 @@ export async function POST(req: Request) {
     ranks.map((r) =>
       prisma.castMonthlyRank.upsert({
         where: {
-          castMasterId_year_month: {
-            castMasterId: r.castMasterId,
+          castId_year_month: {
+            castId: r.castId,
             year,
             month,
           },
         },
         update: { rank: r.rank },
         create: {
-          castMasterId: r.castMasterId,
+          castId: r.castId,
           year,
           month,
           rank: r.rank,
@@ -63,8 +63,8 @@ export async function POST(req: Request) {
   // CastMaster.rank も最新値に更新
   await Promise.all(
     ranks.map((r) =>
-      prisma.castMaster.update({
-        where: { id: r.castMasterId },
+      prisma.cast.update({
+        where: { id: r.castId },
         data: { rank: r.rank },
       })
     )

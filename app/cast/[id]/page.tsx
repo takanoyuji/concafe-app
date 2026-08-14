@@ -15,12 +15,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const cast = await prisma.cast.findFirst({
     where: { id, ...PUBLIC_CAST_WHERE },
-    select: { name: true, bio: true, store: { select: { name: true } } },
+    select: {
+      name: true, bio: true,
+      stores: { where: { isPrimary: true }, take: 1, select: { store: { select: { name: true } } } },
+    },
   });
   if (!cast) return {};
   return {
     title: cast.name,
-    description: `${cast.store.name}所属キャスト「${cast.name}」。${cast.bio.slice(0, 80)}`,
+    description: `${cast.stores[0]?.store.name ?? ""}所属キャスト「${cast.name}」。${cast.bio.slice(0, 80)}`,
   };
 }
 
@@ -32,11 +35,18 @@ export default async function CastDetailPage({ params }: Props) {
     select: {
       id: true, name: true, bio: true, imageUrl: true,
       twitterUrl: true, instagramUrl: true, tiktokUrl: true,
-      store: { select: { name: true, slug: true } },
+      // 掛け持ちの場合は主たる店舗を出す
+      stores: {
+        where: { isPrimary: true },
+        take: 1,
+        select: { store: { select: { name: true, slug: true } } },
+      },
     },
   });
 
   if (!cast) notFound();
+
+  const store = cast.stores[0]?.store ?? { name: "", slug: "" };
 
   return (
     <>
@@ -64,8 +74,8 @@ export default async function CastDetailPage({ params }: Props) {
               {cast.name}
             </h1>
             <div className="inline-block glass-dark px-4 py-1 rounded-full text-sm text-white/70">
-              <Link href={`/store/${cast.store.slug}`} className="hover:text-neon-purple transition-colors">
-                {cast.store.name}
+              <Link href={`/store/${store.slug}`} className="hover:text-neon-purple transition-colors">
+                {store.name}
               </Link>
             </div>
 
@@ -76,7 +86,7 @@ export default async function CastDetailPage({ params }: Props) {
                   <SnsLink
                     href={cast.twitterUrl}
                     snsType="x"
-                    locationName={cast.store.name}
+                    locationName={store.name}
                     className="glass-dark px-3 py-1.5 rounded-full text-xs text-white/70 hover:text-white hover:border-neon-violet transition-all"
                   >
                     𝕏 / Twitter
@@ -86,7 +96,7 @@ export default async function CastDetailPage({ params }: Props) {
                   <SnsLink
                     href={cast.instagramUrl}
                     snsType="instagram"
-                    locationName={cast.store.name}
+                    locationName={store.name}
                     className="glass-dark px-3 py-1.5 rounded-full text-xs text-white/70 hover:text-white hover:border-neon-violet transition-all"
                   >
                     Instagram
@@ -96,7 +106,7 @@ export default async function CastDetailPage({ params }: Props) {
                   <SnsLink
                     href={cast.tiktokUrl}
                     snsType="tiktok"
-                    locationName={cast.store.name}
+                    locationName={store.name}
                     className="glass-dark px-3 py-1.5 rounded-full text-xs text-white/70 hover:text-white hover:border-neon-violet transition-all"
                   >
                     TikTok

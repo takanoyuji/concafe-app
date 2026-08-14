@@ -36,62 +36,86 @@ model Store {
   mapQuery  String
   createdAt DateTime @default(now())
 
-  casts Cast[]
+  castStores CastStore[]
 }
 
+/// キャストの唯一のマスタ。
+///
+/// 以前は HP掲載用の Cast と給与計算用の CastMaster に分かれていたが、
+/// 同じ人物が2箇所に散っていて突き合わせが名前頼りだったため、1つに統合した。
+/// HPに出すかどうかは isPublished（表示FLG）で決める。
+///
+/// id は絶対に振り直さない。ポイント履歴とユーザーのお気に入りが参照している。
 model Cast {
-  id                   String   @id @default(cuid())
-  name                 String
-  bio                  String
-  imageUrl             String
-  storeId              String
-  order                Int      @default(0)
-  isPublished          Boolean  @default(true) // false = HP（公開ページ）に一切表示しない
-  twitterUrl           String?
-  instagramUrl         String?
-  tiktokUrl            String?
-  airShiftName         String?
-  rank                 String?
-  exemptFromCommuteRule Boolean @default(false)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id       String @id @default(cuid())
+  /// 外部システム（remodri 等）から参照するための不変コード。C0001 形式。
+  /// 一度振ったら変えない。採番は lib/castCode.ts が行う
+  castCode String @unique @default("")
+  name     String
 
-  store       Store         @relation(fields: [storeId], references: [id])
-  ledgerItems PointLedger[]
+  /// HP（公開ページ）に表示するか。false なら一切出さない
+  isPublished Boolean @default(false)
+  /// 退職FLG。給与集計の対象から外れる
+  retired     Boolean @default(false)
+
+  // --- HP掲載用 ---
+  bio          String  @default("")
+  imageUrl     String  @default("")
+  twitterUrl   String?
+  instagramUrl String?
+  tiktokUrl    String?
+  order        Int     @default(0)
+  /// ランク。未設定は空文字（給与計算が空文字を「ランクなし」として扱うため null にしない）
+  rank         String  @default("")
+
+  // --- 給与計算用（エアレジ / エアシフト の名寄せ表）---
+  airShiftName          String?
+  exemptFromCommuteRule Boolean @default(false)
+  tokyoAirRegi          String  @default("")
+  tokyoAirShift         String  @default("")
+  osakaAirRegi          String  @default("")
+  osakaAirShift         String  @default("")
+  nagoyaAirRegi         String  @default("")
+  nagoyaAirShift        String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stores       CastStore[]
+  ledgerItems  PointLedger[]
+  monthlyRanks CastMonthlyRank[]
+
+  @@index([isPublished, retired])
 }
 
-model CastMaster {
-  id             String   @id @default(cuid())
-  // 外部システム（remodri 等）から参照するための不変コード。C0001 形式。
-  // 一度振ったら変えない。採番は lib/castCode.ts が行う（DB のデフォルトは使わない）
-  castCode       String   @unique @default("")
-  hpName         String   @default("")   // HP上の名前（空ならHP未掲載）
-  rank           String   @default("")
-  retired        Boolean  @default(false) // 退職FLG
-  tokyoAirRegi   String   @default("")   // 東京 エアレジ名
-  tokyoAirShift  String   @default("")   // 東京 エアシフト名
-  osakaAirRegi   String   @default("")   // 大阪 エアレジ名
-  osakaAirShift  String   @default("")   // 大阪 エアシフト名
-  nagoyaAirRegi  String   @default("")   // 名古屋 エアレジ名
-  nagoyaAirShift String   @default("")   // 名古屋 エアシフト名
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+/// キャストの所属店舗。掛け持ちがいるので複数持てる。
+/// isPrimary が「主たる店舗」で、HPではこの店舗のページに出る。1人につき1つだけ true。
+model CastStore {
+  id        String  @id @default(cuid())
+  castId    String
+  storeId   String
+  isPrimary Boolean @default(false)
+  order     Int     @default(0)
 
-  monthlyRanks CastMonthlyRank[]
+  cast  Cast  @relation(fields: [castId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([castId, storeId])
+  @@index([storeId, isPrimary])
 }
 
 model CastMonthlyRank {
-  id           String   @id @default(cuid())
-  castMasterId String
-  year         Int
-  month        Int      // 1-12
-  rank         String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  castId    String
+  year      Int
+  month     Int // 1-12
+  rank      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  castMaster CastMaster @relation(fields: [castMasterId], references: [id], onDelete: Cascade)
+  cast Cast @relation(fields: [castId], references: [id], onDelete: Cascade)
 
-  @@unique([castMasterId, year, month])
+  @@unique([castId, year, month])
 }
 
 // 半月ごとの給与計算結果

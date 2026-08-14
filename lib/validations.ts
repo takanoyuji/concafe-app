@@ -40,7 +40,8 @@ export const CastSchema = z.object({
   instagramUrl: z.string().nullish(),
   tiktokUrl: z.string().nullish(),
   airShiftName: z.string().nullish(),
-  rank: z.string().nullish(),
+  // ランクは未設定を空文字で表す（給与計算が空文字を「ランクなし」として扱うため）
+  rank: z.string().nullish().transform(v => v ?? ""),
   exemptFromCommuteRule: z.boolean().default(false),
 });
 

@@ -16,7 +16,7 @@ function halfLabel(half: number) {
 
 export interface AggDbResult {
   masterId: string;
-  hpName: string;
+  name: string;
   rank: string;
   tokyo: number;
   osaka: number;
@@ -56,7 +56,7 @@ export async function GET(req: Request) {
       include: { castRecords: true, summaryRecord: true },
       orderBy: [{ storeName: "asc" }, { half: "asc" }],
     }),
-    prisma.castMaster.findMany({ where: { retired: false } }),
+    prisma.cast.findMany({ where: { retired: false } }),
     getRanksForPeriod(year, month),
   ]);
 
@@ -64,10 +64,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ results: [], storeReports: [] });
 
   // Cast aggregate per masterId
-  const resultMap = new Map<string, { hpName: string; rank: string; tokyo: number; osaka: number; nagoya: number }>();
+  const resultMap = new Map<string, { name: string; rank: string; tokyo: number; osaka: number; nagoya: number }>();
   for (const m of masters) {
     const effectiveRank = monthlyRankMap.get(m.id) ?? m.rank;
-    resultMap.set(m.id, { hpName: m.hpName, rank: effectiveRank, tokyo: 0, osaka: 0, nagoya: 0 });
+    resultMap.set(m.id, { name: m.name, rank: effectiveRank, tokyo: 0, osaka: 0, nagoya: 0 });
   }
 
   for (const period of periods) {
@@ -87,7 +87,7 @@ export async function GET(req: Request) {
   const results: AggDbResult[] = [...resultMap.entries()]
     .map(([masterId, r]) => ({
       masterId,
-      hpName: r.hpName,
+      name: r.name,
       rank: r.rank,
       tokyo: r.tokyo,
       osaka: r.osaka,
