@@ -17,7 +17,7 @@ export async function PUT(
   // castCode は外部システム（remodri 等）がキャストを参照する不変キーなので、
   // ここから書き換えられないようにする。undefined の項目は変更されない。
   const data = {
-    hpName:         body.hpName,
+    name:         body.name,
     rank:           body.rank,
     retired:        body.retired,
     tokyoAirRegi:   body.tokyoAirRegi,
@@ -28,7 +28,7 @@ export async function PUT(
     nagoyaAirShift: body.nagoyaAirShift,
   };
 
-  const master = await prisma.castMaster.update({ where: { id }, data });
+  const master = await prisma.cast.update({ where: { id }, data });
   return NextResponse.json({ master });
 }
 
@@ -41,6 +41,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  await prisma.castMaster.delete({ where: { id } });
+  await prisma.cast.delete({ where: { id } });
   return NextResponse.json({ message: "Deleted" });
 }

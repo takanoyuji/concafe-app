@@ -8,7 +8,7 @@ export async function GET() {
   if (!session || session.role !== "ADMIN")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const masters = await prisma.castMaster.findMany({ orderBy: { createdAt: "asc" } });
+  const masters = await prisma.cast.findMany({ orderBy: { createdAt: "asc" } });
   return NextResponse.json({ masters });
 }
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
   // 受け付ける項目を明示する。castCode はここでは受け取らず、必ずサーバー側で採番する
   const data = {
-    hpName:         body.hpName         ?? "",
+    name:         body.name         ?? "",
     rank:           body.rank           ?? "",
     retired:        body.retired        ?? false,
     tokyoAirRegi:   body.tokyoAirRegi   ?? "",
@@ -33,9 +33,9 @@ export async function POST(req: Request) {
   };
 
   const master = await prisma.$transaction(async tx => {
-    const existing = await tx.castMaster.findMany({ select: { castCode: true } });
+    const existing = await tx.cast.findMany({ select: { castCode: true } });
     const allocate = createCastCodeAllocator(existing.map(m => m.castCode));
-    return tx.castMaster.create({ data: { ...data, castCode: allocate() } });
+    return tx.cast.create({ data: { ...data, castCode: allocate() } });
   });
 
   return NextResponse.json({ master }, { status: 201 });

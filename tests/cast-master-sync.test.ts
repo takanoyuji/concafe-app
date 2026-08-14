@@ -28,7 +28,7 @@ function syncReq(token?: string, query = "") {
 beforeEach(async () => {
   session.current = { userId: "admin", role: "ADMIN" };
   await prisma.castMonthlyRank.deleteMany();
-  await prisma.castMaster.deleteMany();
+  await prisma.cast.deleteMany();
 });
 
 afterEach(() => {
@@ -37,119 +37,139 @@ afterEach(() => {
 
 describe("CSV一括取込（upsert）", () => {
   it("取込後も月次ランクの履歴が残り、レコードが作り直されない", async () => {
-    const m = await prisma.castMaster.create({
-      data: { castCode: "C0001", hpName: "さくら", rank: "S" },
+    const m = await prisma.cast.create({
+      data: { castCode: "C0001", name: "さくら", rank: "S" },
     });
     await prisma.castMonthlyRank.createMany({
       data: [
-        { castMasterId: m.id, year: 2026, month: 6, rank: "A" },
-        { castMasterId: m.id, year: 2026, month: 7, rank: "S" },
+        { castId: m.id, year: 2026, month: 6, rank: "A" },
+        { castId: m.id, year: 2026, month: 7, rank: "S" },
       ],
     });
 
-    const res = await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", hpName: "さくら", rank: "S" }] }));
+    const res = await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", name: "さくら", rank: "S" }] }));
     expect(res.status).toBe(200);
 
     // 以前は deleteMany で cascade 削除されていた
     expect(await prisma.castMonthlyRank.count()).toBe(2);
 
-    const after = await prisma.castMaster.findUniqueOrThrow({ where: { castCode: "C0001" } });
+    const after = await prisma.cast.findUniqueOrThrow({ where: { castCode: "C0001" } });
     expect(after.id).toBe(m.id);
   });
 
   it("CSVに退職列が無いとき、退職フラグが維持される", async () => {
-    await prisma.castMaster.create({
-      data: { castCode: "C0001", hpName: "みお", rank: "B", retired: true },
+    await prisma.cast.create({
+      data: { castCode: "C0001", name: "みお", rank: "B", retired: true },
     });
 
-    await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", hpName: "みお", rank: "B" }] }));
+    await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", name: "みお", rank: "B" }] }));
 
     // 以前は毎回 false に戻り、退職者が給与集計に復活していた
-    const after = await prisma.castMaster.findUniqueOrThrow({ where: { castCode: "C0001" } });
+    const after = await prisma.cast.findUniqueOrThrow({ where: { castCode: "C0001" } });
     expect(after.retired).toBe(true);
   });
 
   it("CSVに退職列があればその値で更新される", async () => {
-    await prisma.castMaster.create({
-      data: { castCode: "C0001", hpName: "みお", rank: "B", retired: true },
+    await prisma.cast.create({
+      data: { castCode: "C0001", name: "みお", rank: "B", retired: true },
     });
 
-    await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", hpName: "みお", retired: false }] }));
+    await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", name: "みお", retired: false }] }));
 
-    const after = await prisma.castMaster.findUniqueOrThrow({ where: { castCode: "C0001" } });
+    const after = await prisma.cast.findUniqueOrThrow({ where: { castCode: "C0001" } });
     expect(after.retired).toBe(false);
   });
 
-  it("CSVに載っていない既存キャストは退職扱いになり、件数が返る", async () => {
-    await prisma.castMaster.createMany({
+  it("既定ではCSVに載っていない既存キャストを退職扱いにしない", async () => {
+    await prisma.cast.createMany({
       data: [
-        { castCode: "C0001", hpName: "さくら" },
-        { castCode: "C0002", hpName: "ゆい" },
+        { castCode: "C0001", name: "さくら" },
+        { castCode: "C0002", name: "ゆい" },
       ],
     });
 
-    const res = await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", hpName: "さくら" }] }));
+    const res = await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", name: "さくら" }] }));
     const body = await res.json();
 
-    expect(body.retiredCasts).toEqual([{ castCode: "C0002", hpName: "ゆい" }]);
-    const yui = await prisma.castMaster.findUniqueOrThrow({ where: { castCode: "C0002" } });
-    expect(yui.retired).toBe(true);
-    // レコードは消さないので、管理画面でチェックを外せば戻せる
-    expect(await prisma.castMaster.count()).toBe(2);
+    // 統合により Cast が唯一のマスタになったので、給与用CSVに載っていないだけの
+    // キャスト（HP専用で登録された人など）を巻き込まないようにしている
+    expect(body.retiredCasts).toEqual([]);
+    const yui = await prisma.cast.findUniqueOrThrow({ where: { castCode: "C0002" } });
+    expect(yui.retired).toBe(false);
   });
 
-  it("retireMissing:false なら CSV未掲載でも退職扱いにしない", async () => {
-    await prisma.castMaster.createMany({
+  it("retireMissing:true を明示したときはCSVに載っていない既存キャストを退職扱いにする", async () => {
+    await prisma.cast.createMany({
       data: [
-        { castCode: "C0001", hpName: "さくら" },
-        { castCode: "C0002", hpName: "ゆい" },
+        { castCode: "C0001", name: "さくら" },
+        { castCode: "C0002", name: "ゆい" },
       ],
     });
 
-    await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", hpName: "さくら" }], retireMissing: false }));
+    const res = await bulkPOST(
+      bulkReq({ masters: [{ castCode: "C0001", name: "さくら" }], retireMissing: true })
+    );
+    const body = await res.json();
 
-    const yui = await prisma.castMaster.findUniqueOrThrow({ where: { castCode: "C0002" } });
+    expect(body.retiredCasts).toEqual([{ castCode: "C0002", name: "ゆい" }]);
+    const yui = await prisma.cast.findUniqueOrThrow({ where: { castCode: "C0002" } });
+    expect(yui.retired).toBe(true);
+    // レコードは消さないので、管理画面でチェックを外せば戻せる
+    expect(await prisma.cast.count()).toBe(2);
+  });
+
+  it("retireMissing:false でも CSV未掲載を退職扱いにしない", async () => {
+    await prisma.cast.createMany({
+      data: [
+        { castCode: "C0001", name: "さくら" },
+        { castCode: "C0002", name: "ゆい" },
+      ],
+    });
+
+    await bulkPOST(bulkReq({ masters: [{ castCode: "C0001", name: "さくら" }], retireMissing: false }));
+
+    const yui = await prisma.cast.findUniqueOrThrow({ where: { castCode: "C0002" } });
     expect(yui.retired).toBe(false);
   });
 
   it("castCode 列が無い旧CSVは HP名で既存に突き合わせる（重複作成しない）", async () => {
-    const m = await prisma.castMaster.create({ data: { castCode: "C0001", hpName: "さくら", rank: "A" } });
+    const m = await prisma.cast.create({ data: { castCode: "C0001", name: "さくら", rank: "A" } });
 
-    const res = await bulkPOST(bulkReq({ masters: [{ hpName: "さくら", rank: "S" }] }));
+    const res = await bulkPOST(bulkReq({ masters: [{ name: "さくら", rank: "S" }] }));
     const body = await res.json();
 
     expect(body.created).toBe(0);
     expect(body.updated).toBe(1);
-    expect(await prisma.castMaster.count()).toBe(1);
+    expect(await prisma.cast.count()).toBe(1);
 
-    const after = await prisma.castMaster.findUniqueOrThrow({ where: { id: m.id } });
+    const after = await prisma.cast.findUniqueOrThrow({ where: { id: m.id } });
     expect(after.rank).toBe("S");
     expect(after.castCode).toBe("C0001"); // コードは変わらない
   });
 
   it("新規行には既存の続きから castCode が採番される", async () => {
-    await prisma.castMaster.create({ data: { castCode: "C0007", hpName: "さくら" } });
+    await prisma.cast.create({ data: { castCode: "C0007", name: "さくら" } });
 
     await bulkPOST(bulkReq({
       masters: [
-        { castCode: "C0007", hpName: "さくら" },
-        { hpName: "あたらしい子" },
+        { castCode: "C0007", name: "さくら" },
+        { name: "あたらしい子" },
       ],
     }));
 
-    const created = await prisma.castMaster.findFirstOrThrow({ where: { hpName: "あたらしい子" } });
+    const created = await prisma.cast.findFirstOrThrow({ where: { name: "あたらしい子" } });
     expect(created.castCode).toBe("C0008");
   });
 
   it("CSVで明示されたコードと自動採番が衝突しない", async () => {
     await bulkPOST(bulkReq({
       masters: [
-        { hpName: "コード無し" },   // 自動採番
-        { castCode: "C0001", hpName: "コードあり" },
+        { name: "コード無し" },   // 自動採番
+        { castCode: "C0001", name: "コードあり" },
       ],
     }));
 
-    const codes = (await prisma.castMaster.findMany({ orderBy: { castCode: "asc" } })).map(m => m.castCode);
+    const codes = (await prisma.cast.findMany({ orderBy: { castCode: "asc" } })).map(m => m.castCode);
     expect(new Set(codes).size).toBe(2);
     expect(codes).toContain("C0001");
   });
@@ -157,27 +177,27 @@ describe("CSV一括取込（upsert）", () => {
   it("CSV内でキャストコードが重複していたら取り込まない", async () => {
     const res = await bulkPOST(bulkReq({
       masters: [
-        { castCode: "C0001", hpName: "A" },
-        { castCode: "C0001", hpName: "B" },
+        { castCode: "C0001", name: "A" },
+        { castCode: "C0001", name: "B" },
       ],
     }));
 
     expect(res.status).toBe(400);
-    expect(await prisma.castMaster.count()).toBe(0);
+    expect(await prisma.cast.count()).toBe(0);
   });
 
   it("CSV内でHP名が重複していたら取り込まない", async () => {
     const res = await bulkPOST(bulkReq({
-      masters: [{ hpName: "さくら" }, { hpName: "さくら" }],
+      masters: [{ name: "さくら" }, { name: "さくら" }],
     }));
 
     expect(res.status).toBe(400);
-    expect(await prisma.castMaster.count()).toBe(0);
+    expect(await prisma.cast.count()).toBe(0);
   });
 
   it("ADMIN以外は取り込めない", async () => {
     session.current = { userId: "u", role: "CUSTOMER" };
-    const res = await bulkPOST(bulkReq({ masters: [{ hpName: "さくら" }] }));
+    const res = await bulkPOST(bulkReq({ masters: [{ name: "さくら" }] }));
     expect(res.status).toBe(403);
   });
 });
@@ -203,10 +223,10 @@ describe("同期API（サーバー間・読み取り専用）", () => {
 
   it("正しいトークンなら退職者も含めて返す", async () => {
     vi.stubEnv("SYNC_API_TOKEN", "secret-token");
-    await prisma.castMaster.createMany({
+    await prisma.cast.createMany({
       data: [
-        { castCode: "C0001", hpName: "さくら", rank: "S" },
-        { castCode: "C0002", hpName: "みお", retired: true },
+        { castCode: "C0001", name: "さくら", rank: "S" },
+        { castCode: "C0002", name: "みお", retired: true },
       ],
     });
 
@@ -220,10 +240,10 @@ describe("同期API（サーバー間・読み取り専用）", () => {
 
   it("activeOnly=true なら退職者を除く", async () => {
     vi.stubEnv("SYNC_API_TOKEN", "secret-token");
-    await prisma.castMaster.createMany({
+    await prisma.cast.createMany({
       data: [
-        { castCode: "C0001", hpName: "さくら" },
-        { castCode: "C0002", hpName: "みお", retired: true },
+        { castCode: "C0001", name: "さくら" },
+        { castCode: "C0002", name: "みお", retired: true },
       ],
     });
 

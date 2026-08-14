@@ -9,6 +9,8 @@ type Cast = {
   name: string;
   imageUrl: string;
   store: { name: string; slug: string };
+  /** 所属している全店舗。掛け持ちは複数入る */
+  storeSlugs: string[];
 };
 
 type Store = { slug: string; name: string };
@@ -24,7 +26,7 @@ export default function CastTabs({ casts }: { casts: Cast[]; stores: Store[] }) 
   const [active, setActive] = useState("all");
 
   const filtered =
-    active === "all" ? casts : casts.filter((c) => c.store.slug === active);
+    active === "all" ? casts : casts.filter((c) => c.storeSlugs.includes(active));
 
   return (
     <>

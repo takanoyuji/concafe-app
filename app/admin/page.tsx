@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import NavBar from "@/components/ui/NavBar";
 
-interface Cast { id: string; name: string; bio: string; imageUrl: string; storeId: string; order?: number; isPublished?: boolean; store: { name: string }; airShiftName?: string | null; rank?: string | null; exemptFromCommuteRule?: boolean }
+interface Cast { id: string; castCode?: string; name: string; bio: string; imageUrl: string; storeId: string; order?: number; isPublished?: boolean; retired?: boolean; store: { name: string } | null; stores?: { id: string; name: string; slug: string; isPrimary: boolean }[]; airShiftName?: string | null; rank?: string | null; exemptFromCommuteRule?: boolean }
 interface Store { id: string; slug: string; name: string }
 interface Title { id: string; name: string; threshold: number; order: number }
 interface Customer { id: string; email: string; emailVerified: boolean; birthdate: string | null; ageVerified: boolean; balance: number; createdAt: string; name: string | null; favoriteCast1Name: string | null; favoriteCast2Name: string | null }
@@ -28,7 +28,7 @@ interface PeriodDetail { id: string; storeName: string; year: number; month: num
 
 type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary";
 
-const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, isPublished: true, twitterUrl: "", instagramUrl: "", tiktokUrl: "", airShiftName: "", rank: "", exemptFromCommuteRule: false };
+const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, isPublished: true, retired: false, twitterUrl: "", instagramUrl: "", tiktokUrl: "", airShiftName: "", rank: "", exemptFromCommuteRule: false };
 const MENU_EMPTY = { imageUrl: "", alt: "", order: 0 };
 const RANK_EMPTY = { name: "", backRate: 0, order: 0 };
 
@@ -210,11 +210,15 @@ export default function AdminPage() {
   };
 
   const editCast = (cast: Cast & { twitterUrl?: string | null; instagramUrl?: string | null; tiktokUrl?: string | null }) => {
-    const storeSlug = stores.find(s => s.name === cast.store.name)?.slug ?? "";
+    // 掛け持ちの場合は主たる店舗をフォームに載せる
+    const primary = cast.stores?.find(st => st.isPrimary) ?? cast.stores?.[0];
+    const storeSlug =
+      primary?.slug ?? stores.find(s => s.name === cast.store?.name)?.slug ?? "";
     setCastForm({
       name: cast.name, bio: cast.bio, imageUrl: cast.imageUrl,
       storeId: storeSlug, order: cast.order ?? 0,
       isPublished: cast.isPublished ?? true,
+      retired: cast.retired ?? false,
       twitterUrl: cast.twitterUrl ?? "",
       instagramUrl: cast.instagramUrl ?? "",
       tiktokUrl: cast.tiktokUrl ?? "",
@@ -844,6 +848,18 @@ export default function AdminPage() {
                 <div className="sm:col-span-2 flex items-center gap-2">
                   <input
                     type="checkbox"
+                    id="retired"
+                    checked={castForm.retired}
+                    onChange={e => setCastForm(p => ({ ...p, retired: e.target.checked }))}
+                    className="w-4 h-4 accent-neon-violet"
+                  />
+                  <label htmlFor="retired" className="text-xs text-white/60 cursor-pointer">
+                    退職（給与集計の対象から外れます。HPにも表示されません）
+                  </label>
+                </div>
+                <div className="sm:col-span-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
                     id="exemptFromCommuteRule"
                     checked={castForm.exemptFromCommuteRule}
                     onChange={e => setCastForm(p => ({ ...p, exemptFromCommuteRule: e.target.checked }))}
@@ -880,94 +896,32 @@ export default function AdminPage() {
                       {cast.isPublished === false && (
                         <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-white/10 text-white/50 flex-shrink-0">HP非表示</span>
                       )}
+                      {cast.retired && (
+                        <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-white/10 text-white/50 flex-shrink-0">退職</span>
+                      )}
                     </div>
-                    <div className="text-xs text-white/40">{cast.store.name}{cast.rank ? ` · ${cast.rank}` : ""}</div>
+                    <div className="text-xs text-white/40">
+                      {cast.castCode && <span className="font-mono mr-2">{cast.castCode}</span>}
+                      {/* 掛け持ちは所属する全店舗を出す。( ) 付きが主たる店舗以外 */}
+                      {cast.stores && cast.stores.length > 0
+                        ? cast.stores.map(st => (st.isPrimary ? st.name : `（${st.name}）`)).join(" ")
+                        : (cast.store?.name ?? "")}
+                      {cast.rank ? ` · ${cast.rank}` : ""}
+                    </div>
                   </div>
                   <button onClick={() => editCast(cast)} className="text-neon-violet text-sm hover:text-neon-purple flex-shrink-0">編集</button>
                   <button onClick={() => deleteCast(cast.id)} className="text-neon-pink text-sm hover:text-red-400 flex-shrink-0">削除</button>
                 </div>
               ))}
             </div>
-          </div>
-        )}
 
-        {/* 給与計算 */}
-        {tab === "salary" && (
-          <div className="space-y-6">
-
-            {/* キャストランク管理 */}
-            <div className="glass p-4">
-              <button
-                className="w-full flex items-center justify-between text-left"
-                onClick={() => setShowRankMgmt(p => !p)}
-              >
-                <span className="font-bold text-star-300">🏅 キャストランク管理</span>
-                <span className="text-white/40 text-sm">{showRankMgmt ? "▲ 閉じる" : "▼ 開く"}</span>
-              </button>
-              {showRankMgmt && (
-                <div className="mt-4 space-y-4">
-                  {/* CSV インポート / ダウンロード */}
-                  <div className="glass-dark p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-white/50">CSVインポート（ヘッダー: <code>ランク,バック率</code>、バック率は%で入力）</p>
-                      <button onClick={downloadRanksCsv} className="text-xs text-neon-violet hover:text-neon-purple whitespace-nowrap">⬇ CSVダウンロード</button>
-                    </div>
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="file" accept=".csv"
-                        className="input-field text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-neon-violet/20 file:text-neon-violet cursor-pointer flex-1"
-                        onChange={e => setRankCsvFile(e.target.files?.[0] ?? null)}
-                      />
-                      <button onClick={importRanksCsv} disabled={!rankCsvFile} className="btn-primary text-sm whitespace-nowrap">インポート</button>
-                    </div>
-                  </div>
-                  {/* 手動追加フォーム */}
-                  <div className="space-y-3">
-                    <p className="text-xs text-white/50 font-bold">{editingRank ? "ランク編集" : "手動追加"}</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-xs text-white/60 block mb-1">ランク名 <span className="text-neon-pink">*</span></label>
-                        <input className="input-field" value={rankForm.name} onChange={e => setRankForm(p => ({ ...p, name: e.target.value }))} placeholder="例: ゴールド" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-white/60 block mb-1">バック率（%） <span className="text-neon-pink">*</span></label>
-                        <input type="number" className="input-field" value={Math.round(rankForm.backRate * 100)} onChange={e => setRankForm(p => ({ ...p, backRate: Number(e.target.value) / 100 }))} min={0} max={100} step={1} placeholder="例: 50" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-white/60 block mb-1">表示順</label>
-                        <input type="number" className="input-field" value={rankForm.order} onChange={e => setRankForm(p => ({ ...p, order: Number(e.target.value) }))} />
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <button onClick={saveRank} className="btn-primary text-sm">{editingRank ? "更新" : "追加"}</button>
-                      {editingRank && <button onClick={() => { setEditingRank(null); setRankForm(RANK_EMPTY); }} className="btn-secondary text-sm">キャンセル</button>}
-                    </div>
-                  </div>
-                  {/* 一覧 */}
-                  <div className="space-y-2">
-                    {castRanks.map(r => (
-                      <div key={r.id} className="glass-dark p-3 flex items-center gap-4">
-                        <div className="flex-1">
-                          <span className="font-bold text-white">{r.name}</span>
-                          <span className="text-xs text-white/40 ml-3">バック率: {(r.backRate * 100).toFixed(0)}%　順番: {r.order}</span>
-                        </div>
-                        <button onClick={() => { setRankForm({ name: r.name, backRate: r.backRate, order: r.order }); setEditingRank(r.id); }} className="text-neon-violet text-sm hover:text-neon-purple">編集</button>
-                        <button onClick={() => deleteRank(r.id)} className="text-neon-pink text-sm hover:text-red-400">削除</button>
-                      </div>
-                    ))}
-                    {castRanks.length === 0 && <p className="text-white/40 text-sm text-center py-4">ランクが登録されていません</p>}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* キャストマスタ管理 */}
+            {/* 給与用の名寄せ設定（エアレジ・エアシフト名） */}
             <div className="glass p-4">
               <button
                 className="w-full flex items-center justify-between text-left"
                 onClick={() => setShowCastMasterMgmt(p => !p)}
               >
-                <span className="font-bold text-star-300">👥 キャストマスタ管理</span>
+                <span className="font-bold text-star-300">📋 エアレジ・エアシフト名の対応（給与計算用）</span>
                 <span className="text-white/40 text-sm">{showCastMasterMgmt ? "▲ 閉じる" : "▼ 開く"}</span>
               </button>
               {showCastMasterMgmt && (
@@ -1080,6 +1034,79 @@ export default function AdminPage() {
                       </tbody>
                     </table>
                     {castMasters.length === 0 && <p className="text-white/40 text-sm text-center py-4">マスタが登録されていません。CSVからインポートしてください。</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* 給与計算 */}
+        {tab === "salary" && (
+          <div className="space-y-6">
+
+            {/* キャストランク管理 */}
+            <div className="glass p-4">
+              <button
+                className="w-full flex items-center justify-between text-left"
+                onClick={() => setShowRankMgmt(p => !p)}
+              >
+                <span className="font-bold text-star-300">🏅 キャストランク管理</span>
+                <span className="text-white/40 text-sm">{showRankMgmt ? "▲ 閉じる" : "▼ 開く"}</span>
+              </button>
+              {showRankMgmt && (
+                <div className="mt-4 space-y-4">
+                  {/* CSV インポート / ダウンロード */}
+                  <div className="glass-dark p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-white/50">CSVインポート（ヘッダー: <code>ランク,バック率</code>、バック率は%で入力）</p>
+                      <button onClick={downloadRanksCsv} className="text-xs text-neon-violet hover:text-neon-purple whitespace-nowrap">⬇ CSVダウンロード</button>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="file" accept=".csv"
+                        className="input-field text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-neon-violet/20 file:text-neon-violet cursor-pointer flex-1"
+                        onChange={e => setRankCsvFile(e.target.files?.[0] ?? null)}
+                      />
+                      <button onClick={importRanksCsv} disabled={!rankCsvFile} className="btn-primary text-sm whitespace-nowrap">インポート</button>
+                    </div>
+                  </div>
+                  {/* 手動追加フォーム */}
+                  <div className="space-y-3">
+                    <p className="text-xs text-white/50 font-bold">{editingRank ? "ランク編集" : "手動追加"}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">ランク名 <span className="text-neon-pink">*</span></label>
+                        <input className="input-field" value={rankForm.name} onChange={e => setRankForm(p => ({ ...p, name: e.target.value }))} placeholder="例: ゴールド" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">バック率（%） <span className="text-neon-pink">*</span></label>
+                        <input type="number" className="input-field" value={Math.round(rankForm.backRate * 100)} onChange={e => setRankForm(p => ({ ...p, backRate: Number(e.target.value) / 100 }))} min={0} max={100} step={1} placeholder="例: 50" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">表示順</label>
+                        <input type="number" className="input-field" value={rankForm.order} onChange={e => setRankForm(p => ({ ...p, order: Number(e.target.value) }))} />
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={saveRank} className="btn-primary text-sm">{editingRank ? "更新" : "追加"}</button>
+                      {editingRank && <button onClick={() => { setEditingRank(null); setRankForm(RANK_EMPTY); }} className="btn-secondary text-sm">キャンセル</button>}
+                    </div>
+                  </div>
+                  {/* 一覧 */}
+                  <div className="space-y-2">
+                    {castRanks.map(r => (
+                      <div key={r.id} className="glass-dark p-3 flex items-center gap-4">
+                        <div className="flex-1">
+                          <span className="font-bold text-white">{r.name}</span>
+                          <span className="text-xs text-white/40 ml-3">バック率: {(r.backRate * 100).toFixed(0)}%　順番: {r.order}</span>
+                        </div>
+                        <button onClick={() => { setRankForm({ name: r.name, backRate: r.backRate, order: r.order }); setEditingRank(r.id); }} className="text-neon-violet text-sm hover:text-neon-purple">編集</button>
+                        <button onClick={() => deleteRank(r.id)} className="text-neon-pink text-sm hover:text-red-400">削除</button>
+                      </div>
+                    ))}
+                    {castRanks.length === 0 && <p className="text-white/40 text-sm text-center py-4">ランクが登録されていません</p>}
                   </div>
                 </div>
               )}

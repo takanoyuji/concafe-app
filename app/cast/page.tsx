@@ -8,17 +8,23 @@ import CastLink from "@/components/CastLink";
 export const dynamic = "force-dynamic";
 
 export default async function CastListPage() {
-  const stores = await prisma.store.findMany({
+  // 掛け持ちのキャストは所属している全店舗の欄に出る
+  const rows = await prisma.store.findMany({
     select: {
       id: true, name: true, slug: true, createdAt: true,
-      casts: {
-        where: PUBLIC_CAST_WHERE,
-        select: { id: true, name: true, bio: true, imageUrl: true },
-        orderBy: { order: "asc" },
+      castStores: {
+        // 掛け持ちしていても、HPに出るのは主たる店舗のページだけ
+        where: { isPrimary: true, cast: PUBLIC_CAST_WHERE },
+        select: { cast: { select: { id: true, name: true, bio: true, imageUrl: true } } },
+        orderBy: { cast: { order: "asc" } },
       },
     },
     orderBy: { createdAt: "asc" },
   });
+  const stores = rows.map(({ castStores, ...store }) => ({
+    ...store,
+    casts: castStores.map(cs => cs.cast),
+  }));
 
   return (
     <>

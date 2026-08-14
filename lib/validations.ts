@@ -36,11 +36,13 @@ export const CastSchema = z.object({
   storeId: z.string().min(1, "店舗は必須です"),
   order: z.number().int().default(0),
   isPublished: z.boolean().default(true),
+  retired: z.boolean().default(false),
   twitterUrl: z.string().nullish(),
   instagramUrl: z.string().nullish(),
   tiktokUrl: z.string().nullish(),
   airShiftName: z.string().nullish(),
-  rank: z.string().nullish(),
+  // ランクは未設定を空文字で表す（給与計算が空文字を「ランクなし」として扱うため）
+  rank: z.string().nullish().transform(v => v ?? ""),
   exemptFromCommuteRule: z.boolean().default(false),
 });
 

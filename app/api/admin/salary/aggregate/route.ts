@@ -5,7 +5,7 @@ import { calculateSalary, type CastInput } from "@/lib/salary";
 
 export interface AggregateResult {
   masterId:    string;
-  hpName:      string;
+  name:      string;
   rank:        string;
   tokyo:       number;  // 東京 payment (0 if no data)
   osaka:       number;  // 大阪 payment
@@ -15,7 +15,7 @@ export interface AggregateResult {
 
 // CastMasterフィールドからstoreごとのCastInputを作成
 function buildCasts(
-  masters: Awaited<ReturnType<typeof prisma.castMaster.findMany>>,
+  masters: Awaited<ReturnType<typeof prisma.cast.findMany>>,
   rankMap: Map<string, number>,
   prefix: "tokyo" | "osaka" | "nagoya"
 ): CastInput[] {
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   const nagoyaWage  = formData.get("nagoyaWageCsv")  as File | null;
 
   const [masters, castRanks] = await Promise.all([
-    prisma.castMaster.findMany({ where: { retired: false }, orderBy: { createdAt: "asc" } }),
+    prisma.cast.findMany({ where: { retired: false }, orderBy: { createdAt: "asc" } }),
     prisma.castRank.findMany(),
   ]);
 
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
     const nagoya = paymentMap.nagoya.get(m.nagoyaAirRegi) ?? 0;
     const total  = tokyo + osaka + nagoya;
     // 全店舗で何も出勤がなければスキップ
-    return { masterId: m.id, hpName: m.hpName, rank: m.rank, tokyo, osaka, nagoya, total };
+    return { masterId: m.id, name: m.name, rank: m.rank, tokyo, osaka, nagoya, total };
   }).filter(r => r.total > 0);
 
   // 合計でソート

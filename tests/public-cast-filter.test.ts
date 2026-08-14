@@ -19,6 +19,8 @@ const ALLOWLIST: Record<string, string> = {
   "lib/cast.ts": "PUBLIC_CAST_WHERE の定義元",
   "app/api/cast/[id]/route.ts": "管理者は非公開キャストも取得できる必要があるため三項で分岐（GETはフィルタ済み）",
   "app/api/cast/route.ts": "管理者の includeHidden=1 のときだけ undefined にする分岐あり（既定はフィルタ済み）",
+  "app/api/sync/cast-master/route.ts": "外部システム向けの同期API。トークン認証済みで、退職者も含めて全件返す必要がある",
+  "lib/rank.ts": "給与計算のランク解決。公開ページからは呼ばれない",
 };
 
 // キャストをDBから引いているコードの検出パターン

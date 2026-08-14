@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   const half  = halfStr  ? parseInt(halfStr,  10) : null;
 
   const [masters, castRanks, monthlyRankMap] = await Promise.all([
-    prisma.castMaster.findMany({ where: { retired: false } }),
+    prisma.cast.findMany({ where: { retired: false } }),
     prisma.castRank.findMany(),
     year && month ? getRanksForPeriod(year, month) : Promise.resolve(null),
   ]);
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
   const rankMap = new Map<string, number>(castRanks.map(r => [r.name, r.backRate] as [string, number]));
   const hpNameMap = new Map<string, string>(masters.map(m => {
     const regi = String(m[`${prefix}AirRegi` as keyof typeof m] || "");
-    return [regi, m.hpName] as [string, string];
+    return [regi, m.name] as [string, string];
   }));
 
   const regiField  = `${prefix}AirRegi`  as keyof typeof masters[0];
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
         castRecords: {
           create: summary.casts.map(c => ({
             castName:    c.castName,
-            hpName:      hpNameMap.get(c.castName) ?? "",
+            name:      hpNameMap.get(c.castName) ?? "",
             rank:        c.rank,
             basicPay:    c.basicPay,
             commute:     c.commute,

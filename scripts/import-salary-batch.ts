@@ -154,7 +154,7 @@ async function main() {
 
   try {
     const [masters, castRanks] = await Promise.all([
-      prisma.castMaster.findMany(),
+      prisma.cast.findMany(),
       prisma.castRank.findMany(),
     ]);
 
@@ -166,7 +166,7 @@ async function main() {
     for (const store of STORES) {
       const regiField = `${store.prefix}AirRegi` as keyof (typeof masters)[0];
       hpNameMaps[store.prefix] = new Map(
-        masters.map((m) => [String(m[regiField] || ""), m.hpName] as [string, string])
+        masters.map((m) => [String(m[regiField] || ""), m.name] as [string, string])
       );
     }
 
@@ -235,7 +235,7 @@ async function main() {
               castRecords: {
                 create: summary.casts.map((c) => ({
                   castName: c.castName,
-                  hpName: hpMap.get(c.castName) ?? "",
+                  name: hpMap.get(c.castName) ?? "",
                   rank: c.rank,
                   basicPay: c.basicPay,
                   commute: c.commute,

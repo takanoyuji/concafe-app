@@ -70,7 +70,7 @@ async function main() {
   const prisma = new PrismaClient({ adapter });
 
   try {
-    const masters = await prisma.castMaster.findMany();
+    const masters = await prisma.cast.findMany();
     console.log(`CastMaster: ${masters.length}件`);
 
     let totalMatched = 0;
@@ -103,18 +103,18 @@ async function main() {
           continue;
         }
 
-        await prisma.castMaster.update({
+        await prisma.cast.update({
           where: { id: master.id },
           data: { rank },
         });
 
         await prisma.castMonthlyRank.upsert({
-          where: { castMasterId_year_month: { castMasterId: master.id, year, month } },
+          where: { castId_year_month: { castId: master.id, year, month } },
           update: { rank },
-          create: { castMasterId: master.id, year, month, rank },
+          create: { castId: master.id, year, month, rank },
         });
 
-        console.log(`  ✓ ${castName} → ${master.hpName || master.id} : ${rank}`);
+        console.log(`  ✓ ${castName} → ${master.name || master.id} : ${rank}`);
         matched++;
       }
 

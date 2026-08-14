@@ -18,12 +18,12 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const activeOnly = searchParams.get("activeOnly") === "true";
 
-  const casts = await prisma.castMaster.findMany({
+  const casts = await prisma.cast.findMany({
     where: activeOnly ? { retired: false } : {},
     orderBy: { castCode: "asc" },
     select: {
       castCode: true,
-      hpName: true,
+      name: true,
       rank: true,
       retired: true,
       tokyoAirRegi: true,
