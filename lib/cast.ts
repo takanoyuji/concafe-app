@@ -25,11 +25,18 @@ export async function isPublishedCast(id: string): Promise<boolean> {
 }
 
 /**
- * その店舗に所属しているキャストを引く条件。
- * 掛け持ちのキャストは所属している全店舗のページに出る。
+ * その店舗のページに出すキャストを引く条件。
+ *
+ * 掛け持ちしていても、HPに出るのは主たる店舗（isPrimary）のページだけ。
+ * 掛け持ち先はサブ扱いで、給与計算の対象にはなるがHPには出さない。
  */
 export function castsOfStore(storeId: string): Prisma.CastWhereInput {
-  return { stores: { some: { storeId } } };
+  return { stores: { some: { storeId, isPrimary: true } } };
+}
+
+/** その店舗のページに出す CastStore を引く条件（店舗側から辿るとき用） */
+export function primaryCastsOfStoreWhere(): { isPrimary: boolean; cast: typeof PUBLIC_CAST_WHERE } {
+  return { isPrimary: true, cast: PUBLIC_CAST_WHERE };
 }
 
 /** 主たる店舗を1件だけ取るための include。ランキング等の店舗名表示に使う */

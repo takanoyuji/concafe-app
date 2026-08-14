@@ -13,7 +13,8 @@ export default async function CastListPage() {
     select: {
       id: true, name: true, slug: true, createdAt: true,
       castStores: {
-        where: { cast: PUBLIC_CAST_WHERE },
+        // 掛け持ちしていても、HPに出るのは主たる店舗のページだけ
+        where: { isPrimary: true, cast: PUBLIC_CAST_WHERE },
         select: { cast: { select: { id: true, name: true, bio: true, imageUrl: true } } },
         orderBy: { cast: { order: "asc" } },
       },

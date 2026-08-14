@@ -17,13 +17,15 @@ export default async function CastSection() {
     orderBy: [{ order: "asc" }, { name: "asc" }],
   });
 
-  // 掛け持ちのキャストは所属している全店舗のタブに出す。
-  // 名前の下に出す店舗名は主たる店舗のもの
-  const casts = rows.map(({ stores, ...cast }) => ({
-    ...cast,
-    store: stores.find(s => s.isPrimary)?.store ?? stores[0]?.store ?? { name: "", slug: "" },
-    storeSlugs: stores.map(s => s.store.slug),
-  }));
+  // 掛け持ちしていても、出るのは主たる店舗のタブだけ
+  const casts = rows.map(({ stores, ...cast }) => {
+    const primary = stores.find(s => s.isPrimary)?.store ?? stores[0]?.store;
+    return {
+      ...cast,
+      store: primary ?? { name: "", slug: "" },
+      storeSlugs: primary ? [primary.slug] : [],
+    };
+  });
 
   const stores = [
     { slug: "tokyo",  name: "池袋店" },

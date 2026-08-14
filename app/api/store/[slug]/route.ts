@@ -13,7 +13,8 @@ export async function GET(
       // 非公開キャストと給与情報は返さない。
       // 掛け持ちのキャストは所属している全店舗のページに出る
       castStores: {
-        where: { cast: PUBLIC_CAST_WHERE },
+        // 掛け持ちしていても、HPに出るのは主たる店舗のページだけ
+        where: { isPrimary: true, cast: PUBLIC_CAST_WHERE },
         select: {
           isPrimary: true,
           cast: {

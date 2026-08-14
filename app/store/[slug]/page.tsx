@@ -34,7 +34,8 @@ export default async function StorePage({ params }: Props) {
     include: {
       // 掛け持ちのキャストも在籍として表示する
       castStores: {
-        where: { cast: PUBLIC_CAST_WHERE },
+        // 掛け持ちしていても、HPに出るのは主たる店舗のページだけ
+        where: { isPrimary: true, cast: PUBLIC_CAST_WHERE },
         include: { cast: true },
         orderBy: { cast: { order: "asc" } },
       },
