@@ -28,7 +28,12 @@ function syncReq(token?: string, query = "") {
 beforeEach(async () => {
   session.current = { userId: "admin", role: "ADMIN" };
   await prisma.castMonthlyRank.deleteMany();
+  await prisma.castStore.deleteMany();
   await prisma.cast.deleteMany();
+  await prisma.store.deleteMany();
+  await prisma.store.create({
+    data: { slug: "tokyo", name: "テスト店", address: "-", mapQuery: "-" },
+  });
 });
 
 afterEach(() => {
@@ -236,6 +241,34 @@ describe("同期API（サーバー間・読み取り専用）", () => {
     const body = await res.json();
     expect(body.count).toBe(2);
     expect(body.casts.map((c: { castCode: string }) => c.castCode)).toEqual(["C0001", "C0002"]);
+  });
+
+  it("所属店舗を返す（掛け持ちは複数、主たる店舗が先頭）", async () => {
+    vi.stubEnv("SYNC_API_TOKEN", "secret-token");
+    const store = await prisma.store.findFirstOrThrow();
+    const store2 = await prisma.store.create({
+      data: { slug: "sub-store", name: "サブ店", address: "-", mapQuery: "-" },
+    });
+    await prisma.cast.create({
+      data: {
+        castCode: "C0001",
+        name: "さくら",
+        stores: {
+          create: [
+            { storeId: store2.id, isPrimary: false },
+            { storeId: store.id, isPrimary: true },
+          ],
+        },
+      },
+    });
+
+    const res = await syncGET(syncReq("secret-token"));
+    const body = await res.json();
+    const cast = body.casts[0];
+
+    expect(cast.stores).toHaveLength(2);
+    expect(cast.stores[0].isPrimary).toBe(true);
+    expect(cast.primaryStoreCode).toBe(store.slug);
   });
 
   it("activeOnly=true なら退職者を除く", async () => {

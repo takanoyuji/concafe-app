@@ -33,11 +33,28 @@ export async function GET(req: Request) {
       nagoyaAirRegi: true,
       nagoyaAirShift: true,
       updatedAt: true,
+      // 所属店舗。掛け持ちがあるので配列で返す。isPrimary が主たる店舗
+      stores: {
+        select: { isPrimary: true, store: { select: { slug: true, name: true } } },
+        orderBy: { isPrimary: "desc" },
+      },
     },
   });
 
   return NextResponse.json(
-    { casts, count: casts.length },
+    {
+      casts: casts.map(({ stores, ...cast }) => ({
+        ...cast,
+        stores: stores.map(s => ({
+          storeCode: s.store.slug,
+          storeName: s.store.name,
+          isPrimary: s.isPrimary,
+        })),
+        // 主たる店舗だけを見たい呼び出し側のために単体でも返す
+        primaryStoreCode: stores.find(s => s.isPrimary)?.store.slug ?? null,
+      })),
+      count: casts.length,
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
