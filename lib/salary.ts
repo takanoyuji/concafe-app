@@ -32,13 +32,68 @@ export interface SalarySummary {
   workHours: string;
 }
 
-export function decodeShiftJIS(buffer: ArrayBuffer): string {
-  const decoder = new TextDecoder("shift-jis");
-  return decoder.decode(buffer);
+/** CSVの形式が想定と違うことを呼び出し元に伝える。API側で400にして計算させない */
+export class CsvFormatError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CsvFormatError";
+  }
+}
+
+const stripBom = (s: string) => s.replace(/^﻿/, "");
+
+/**
+ * CSVの文字コードを判定して復号する。
+ *
+ * エアレジ／エアシフトの書き出しは Shift-JIS のことも UTF-8 のこともある。
+ * Shift-JIS 決め打ちで読むと、UTF-8 のファイルは列名が化けて全項目が0になる
+ * （2026-08-16: 名古屋店の売上が全額0で計算された）。
+ *
+ * 判定は「UTF-8として妥当か」を先に見る。Shift-JIS の日本語バイト列は
+ * UTF-8 として不正になるため fatal で弾ける。逆向き（UTF-8を Shift-JIS で読む）は
+ * 妥当な漢字に化けてしまい検出できないので、この順序でなければならない。
+ */
+export function decodeCsv(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+
+  // UTF-8 BOM があれば確定
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return stripBom(new TextDecoder("utf-8").decode(buffer));
+  }
+
+  try {
+    return stripBom(new TextDecoder("utf-8", { fatal: true }).decode(buffer));
+  } catch {
+    return stripBom(new TextDecoder("shift-jis").decode(buffer));
+  }
+}
+
+const SALES_REQUIRED = ["商品名", "カテゴリー", "税区分", "販売総売上", "粗利総額"];
+const WAGE_REQUIRED  = ["氏名", "基本給", "通勤手当", "労働時間"];
+
+/**
+ * 必要な列が揃っているかを確認する。揃っていなければ計算せずに止める。
+ * 列名が1つでも欠けると該当項目が黙って0になり、バック未加算の給与が
+ * それらしく出てしまうため、0を返すのではなく必ず例外にする。
+ */
+function assertColumns(rows: Record<string, string>[], required: string[], label: string): void {
+  if (rows.length === 0) {
+    throw new CsvFormatError(`${label}にデータ行がありません。ダウンロードした期間とファイルをご確認ください`);
+  }
+  const headers = Object.keys(rows[0]);
+  const missing = required.filter(c => !headers.includes(c));
+  if (missing.length > 0) {
+    throw new CsvFormatError(
+      `${label}に必要な列がありません: ${missing.join("、")}。` +
+      `文字コードか、ダウンロードした帳票の種類が想定と違う可能性があります。` +
+      `読み取れた列: ${headers.slice(0, 8).join("、")}`
+    );
+  }
 }
 
 export function parseCSV(text: string): Record<string, string>[] {
-  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  // BOM が残っていると1列目のヘッダーだけ一致しなくなるので念のため落とす
+  const lines = stripBom(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   if (lines.length === 0) return [];
 
   // ヘッダー行
@@ -108,11 +163,13 @@ export function calculateSalary(
   casts: CastInput[]
 ): SalarySummary {
   // --- CSV パース ---
-  const salesText = decodeShiftJIS(salesBuf);
-  const wageText = new TextDecoder("utf-8").decode(wageBuf);
+  // 文字コードはファイルごとに判定する（決め打ちにしない）
+  const salesRaw = parseCSV(decodeCsv(salesBuf));
+  const wageRaw  = parseCSV(decodeCsv(wageBuf));
 
-  const salesRaw = parseCSV(salesText);
-  const wageRaw = parseCSV(wageText);
+  // 列が揃わないまま進むと全項目が0のまま計算が「成功」してしまうので、ここで止める
+  assertColumns(salesRaw, SALES_REQUIRED, "売上CSV");
+  assertColumns(wageRaw,  WAGE_REQUIRED,  "人件費CSV");
 
   // --- 売上CSV 数値変換 + インボイス処理 ---
   const sales: SalesRow[] = salesRaw.map(r => {
@@ -170,7 +227,7 @@ export function calculateSalary(
 
   for (const c of casts) {
     const wageEntry = wageMap.get(c.airShiftName) ?? { basic: 0, commute: 0, laborTimes: [] };
-    let basicPay = wageEntry.basic;
+    const basicPay = wageEntry.basic;
     let commute = wageEntry.commute;
     const grossProfit = grossMap.get(c.castName) ?? 0;
     const totalSales = salesMap.get(c.castName) ?? 0;

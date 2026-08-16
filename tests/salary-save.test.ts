@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import iconv from "iconv-lite";
 
 const session = vi.hoisted(() => ({ current: null as null | { userId: string; role: string } }));
@@ -51,6 +51,15 @@ beforeEach(async () => {
       tokyoAirRegi: "サクラ", tokyoAirShift: "佐倉花子",
     },
   });
+});
+
+// 他のテストファイルは「キャストが1件も無い」前提で beforeAll を書いているため、
+// このファイルが作ったレコードは必ず片付ける（実行順によって他が落ちる）
+afterAll(async () => {
+  await prisma.salaryPeriod.deleteMany({ where: { storeName: STORE } });
+  await prisma.castStore.deleteMany();
+  await prisma.cast.deleteMany();
+  await prisma.castRank.deleteMany();
 });
 
 describe("給与計算のDB保存", () => {

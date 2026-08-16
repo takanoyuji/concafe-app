@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateSalary, type CastInput } from "@/lib/salary";
+import { calculateSalary, CsvFormatError, type CastInput } from "@/lib/salary";
 import { getRanksForPeriod } from "@/lib/rank";
 
 function storePrefix(storeName: string): "tokyo" | "osaka" | "nagoya" | null {
@@ -72,7 +72,16 @@ export async function POST(req: Request) {
   const salesBuf = await salesFile.arrayBuffer();
   const wageBuf  = await wageFile.arrayBuffer();
 
-  const summary = calculateSalary(salesBuf, wageBuf, casts);
+  // CSVの形式が想定と違うときは計算せずに止める（0のまま保存させない）
+  let summary;
+  try {
+    summary = calculateSalary(salesBuf, wageBuf, casts);
+  } catch (e) {
+    if (e instanceof CsvFormatError) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
+    throw e;
+  }
 
   // --- DB 保管（期間指定があれば）---
   if (year && month && half) {

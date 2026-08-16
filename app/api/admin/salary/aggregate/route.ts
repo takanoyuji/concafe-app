@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateSalary, type CastInput } from "@/lib/salary";
+import { calculateSalary, CsvFormatError, type CastInput } from "@/lib/salary";
 
 export interface AggregateResult {
   masterId:    string;
@@ -58,26 +58,25 @@ export async function POST(req: Request) {
     tokyo: new Map(), osaka: new Map(), nagoya: new Map(),
   };
 
-  if (tokyoSales && tokyoWage) {
-    const casts = buildCasts(masters, rankMap, "tokyo");
-    const summary = calculateSalary(
-      await tokyoSales.arrayBuffer(), await tokyoWage.arrayBuffer(), casts
-    );
-    for (const c of summary.casts) paymentMap.tokyo.set(c.castName, c.payment);
-  }
-  if (osakaSales && osakaWage) {
-    const casts = buildCasts(masters, rankMap, "osaka");
-    const summary = calculateSalary(
-      await osakaSales.arrayBuffer(), await osakaWage.arrayBuffer(), casts
-    );
-    for (const c of summary.casts) paymentMap.osaka.set(c.castName, c.payment);
-  }
-  if (nagoyaSales && nagoyaWage) {
-    const casts = buildCasts(masters, rankMap, "nagoya");
-    const summary = calculateSalary(
-      await nagoyaSales.arrayBuffer(), await nagoyaWage.arrayBuffer(), casts
-    );
-    for (const c of summary.casts) paymentMap.nagoya.set(c.castName, c.payment);
+  const inputs = [
+    { prefix: "tokyo",  label: "東京",   sales: tokyoSales,  wage: tokyoWage  },
+    { prefix: "osaka",  label: "大阪",   sales: osakaSales,  wage: osakaWage  },
+    { prefix: "nagoya", label: "名古屋", sales: nagoyaSales, wage: nagoyaWage },
+  ] as const;
+
+  for (const { prefix, label, sales, wage } of inputs) {
+    if (!sales || !wage) continue;
+    const casts = buildCasts(masters, rankMap, prefix);
+    try {
+      const summary = calculateSalary(await sales.arrayBuffer(), await wage.arrayBuffer(), casts);
+      for (const c of summary.casts) paymentMap[prefix].set(c.castName, c.payment);
+    } catch (e) {
+      // 1店舗でも読めなければ、途中までの集計を返さずに止める
+      if (e instanceof CsvFormatError) {
+        return NextResponse.json({ error: `${label}店: ${e.message}` }, { status: 400 });
+      }
+      throw e;
+    }
   }
 
   const results: AggregateResult[] = masters.map(m => {
