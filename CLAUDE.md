@@ -63,6 +63,27 @@ ssh prod-server-deploy 'cd /opt/apps/concafe-app && docker compose up -d'
    ```
    ボリューム名を変えるとデータが消えるため絶対に変更しない。
 
+## ⚠️ `SalaryCastRecord.hpName` は `Cast.name` と別物 — 一括置換で巻き込まない
+
+給与明細 `SalaryCastRecord` は、計算時点のキャスト名を `hpName` 列に**値のコピーとして**持つ。
+確定した給与明細が後から変わってはいけないので、`Cast` への参照ではなく写しにしてある。
+`Cast` 側の列名を変えても、こちらは変えない。
+
+| 触るとき | 列名 |
+|---|---|
+| `Cast`（キャスト本体・HP・給与計算の入力） | `name` |
+| `SalaryCastRecord`（確定した給与明細） | `hpName` ← 変えない |
+
+**Prisma のネスト create は `XOR<>` 型のため、列名を間違えても `tsc --noEmit` が通る。**
+実行して初めて `Unknown argument 'name'. Did you mean 'hpName'?` で落ちる。
+給与まわりを触ったら必ず `npx vitest run tests/salary-save.test.ts` まで実行する。
+
+（2026-08-14: `Cast.hpName` → `Cast.name` の統合リネームが `SalaryCastRecord.hpName` まで及び、
+本番で給与計算の「計算実行」が常に500になった。保存チェックが既定ONで、クライアントの
+`res.json()` も例外になるため画面にエラーすら出ず「ボタンが効かない」状態だった。
+同時に管理画面だけ `hpName` のまま取り残され、名前欄が空・CSV取込で新規行が落ちる、も起きていた。
+2026-08-16 に修正し、`tests/salary-save.test.ts` を回帰テストとして追加）
+
 ## 詳細ドキュメント
 
 - **運用・インシデント対応・復旧手順**: `docs/OPERATIONS.md` を参照
