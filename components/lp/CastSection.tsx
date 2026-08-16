@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PUBLIC_CAST_WHERE } from "@/lib/cast";
+import { getMonthlyGiftTotals } from "@/lib/points";
+import { orderCastsByMonthlyGift, previousMonthJst } from "@/lib/castOrder";
 import CastTabs from "./CastTabs";
 
 export default async function CastSection() {
@@ -14,11 +16,16 @@ export default async function CastSection() {
         orderBy: { isPrimary: "desc" },
       },
     },
+    // 並び順は先月のギフト実績で決めるので、ここでは名前順で安定させるだけ
     orderBy: [{ order: "asc" }, { name: "asc" }],
   });
 
+  // 先月のギフト合計が多い順。実績が無いキャストは末尾にシャッフルして並べる
+  const { year, month } = previousMonthJst();
+  const ordered = orderCastsByMonthlyGift(rows, await getMonthlyGiftTotals(year, month));
+
   // 掛け持ちしていても、出るのは主たる店舗のタブだけ
-  const casts = rows.map(({ stores, ...cast }) => {
+  const casts = ordered.map(({ stores, ...cast }) => {
     const primary = stores.find(s => s.isPrimary)?.store ?? stores[0]?.store;
     return {
       ...cast,

@@ -27,6 +27,31 @@ export async function getCumulativeGrantTotal(userId: string): Promise<number> {
   return result._sum.amount ?? 0;
 }
 
+/**
+ * 指定月のキャスト別ギフト合計を castId => 合計 で返す。
+ * HPの表示順（lib/castOrder.ts）が使う。ランキング表示用の
+ * getMonthlyRanking と違い、並べ替えに必要な数字だけを集計する。
+ */
+export async function getMonthlyGiftTotals(
+  year: number,
+  month: number // 1-indexed
+): Promise<Map<string, number>> {
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 1);
+
+  const rows = await prisma.pointLedger.groupBy({
+    by: ["castId"],
+    where: { type: "GIFT", createdAt: { gte: start, lt: end } },
+    _sum: { amount: true },
+  });
+
+  return new Map(
+    rows
+      .filter((r): r is typeof r & { castId: string } => r.castId !== null)
+      .map(r => [r.castId, r._sum.amount ?? 0])
+  );
+}
+
 export async function getCastRanking(storeId?: string) {
   const casts = await prisma.cast.findMany({
     where: { ...PUBLIC_CAST_WHERE, ...(storeId ? castsOfStore(storeId) : {}) },
