@@ -10,10 +10,10 @@ interface Customer { id: string; email: string; emailVerified: boolean; birthdat
 interface MenuItem { id: string; imageUrl: string; alt: string; order: number }
 interface ResetLog { id: string; userId: string | null; email: string | null; amount: number; idempotencyKey: string | null; createdAt: string }
 interface CastRank { id: string; name: string; backRate: number; order: number }
-interface CastMaster { id: string; castCode: string; hpName: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; }
+interface CastMaster { id: string; castCode: string; name: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; }
 interface CastResult { castName: string; rank: string; basicPay: number; commute: number; grossProfit: number; totalSales: number; back: number; salary: number; payment: number }
 interface SalarySummary { casts: CastResult[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; purchases: number; castPay: number; laborCost: number; contributionProfit: number; workHours: string }
-interface AggResult { masterId: string; hpName: string; rank: string; tokyo: number; osaka: number; nagoya: number; total: number; }
+interface AggResult { masterId: string; name: string; rank: string; tokyo: number; osaka: number; nagoya: number; total: number; }
 interface PayMethodStat { amount: number; txCount: number; fee: number; }
 interface AccountingResult {
   totalTx: number; onsiteTx: number; remoteTx: number;
@@ -23,6 +23,7 @@ interface AccountingResult {
 }
 interface StoreReport { storeName: string; halves: string[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; castPay: number; laborCost: number; contributionProfit: number; }
 interface SalaryPeriod { id: string; storeName: string; year: number; month: number; half: number; updatedAt: string; summaryRecord: { totalSalesTaxIncl: number; grossProfit: number; castPay: number; laborCost: number; contributionProfit: number; } | null }
+// hpName は SalaryCastRecord の列名。Cast の name とは別物なので一括置換しないこと
 interface HistoryCastRecord extends CastResult { hpName: string; }
 interface PeriodDetail { id: string; storeName: string; year: number; month: number; half: number; castRecords: HistoryCastRecord[]; summaryRecord: SalarySummary | null }
 
@@ -547,7 +548,7 @@ export default function AdminPage() {
     // 列が無い場合は undefined のまま送る（サーバー側で「変更しない」と解釈される）
     const mapped = rows.map(r => ({
       castCode:       r["キャストコード"],
-      hpName:         r["HP名"],
+      name:           r["HP名"],
       rank:           r["ランク"],
       retired:        r["退職"] === undefined ? undefined : ["1", "true", "TRUE", "はい", "○"].includes(r["退職"]),
       tokyoAirRegi:   r["東京エアレジ"],
@@ -556,7 +557,7 @@ export default function AdminPage() {
       osakaAirShift:  r["大阪エアシフト"],
       nagoyaAirRegi:  r["名古屋エアレジ"],
       nagoyaAirShift: r["名古屋エアシフト"],
-    })).filter(m => [m.castCode, m.hpName, m.tokyoAirRegi, m.osakaAirRegi, m.nagoyaAirRegi].some(v => v));
+    })).filter(m => [m.castCode, m.name, m.tokyoAirRegi, m.osakaAirRegi, m.nagoyaAirRegi].some(v => v));
     if (mapped.length === 0) { flash("CSVにデータがありません（ヘッダー: キャストコード,HP名,東京エアレジ,…）", true); return; }
     const res = await fetch("/api/admin/cast-master/bulk", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -564,10 +565,10 @@ export default function AdminPage() {
     });
     if (res.ok) {
       const d = await res.json();
-      const retired: { castCode: string; hpName: string }[] = d.retiredCasts ?? [];
+      const retired: { castCode: string; name: string }[] = d.retiredCasts ?? [];
       let msg = `新規${d.created}件 / 更新${d.updated}件`;
       if (retired.length > 0)
-        msg += ` / CSVに無い${retired.length}件を退職扱いにしました（${retired.map(c => c.hpName || c.castCode).join("、")}）`;
+        msg += ` / CSVに無い${retired.length}件を退職扱いにしました（${retired.map(c => c.name || c.castCode).join("、")}）`;
       flash(msg);
       setCastMasterCsvFile(null); fetchAll();
     }
@@ -576,7 +577,7 @@ export default function AdminPage() {
 
   const downloadCastMasterNewCsv = () => {
     const header = ["キャストコード", "HP名", "東京エアレジ", "東京エアシフト", "大阪エアレジ", "大阪エアシフト", "名古屋エアレジ", "名古屋エアシフト", "ランク", "退職"];
-    const rows = [header, ...castMasters.map(m => [m.castCode, m.hpName, m.tokyoAirRegi, m.tokyoAirShift, m.osakaAirRegi, m.osakaAirShift, m.nagoyaAirRegi, m.nagoyaAirShift, m.rank, m.retired ? "1" : ""])];
+    const rows = [header, ...castMasters.map(m => [m.castCode, m.name, m.tokyoAirRegi, m.tokyoAirShift, m.osakaAirRegi, m.osakaAirShift, m.nagoyaAirRegi, m.nagoyaAirShift, m.rank, m.retired ? "1" : ""])];
     downloadCsv("キャストマスタ.csv", rows);
   };
 
@@ -1001,7 +1002,7 @@ export default function AdminPage() {
                             <tr key={m.id} className={`border-b border-white/5 ${m.retired ? "opacity-40" : ""} ${changed ? "bg-neon-violet/5" : ""}`}>
                               {/* castCode は外部システムが参照する不変コードなので編集させない */}
                               <td className="py-1 pr-2 font-mono text-white/40 whitespace-nowrap">{m.castCode}</td>
-                              <td className="py-1 pr-2">{field("hpName")}</td>
+                              <td className="py-1 pr-2">{field("name")}</td>
                               <td className="py-1 pr-2">{field("tokyoAirRegi")}</td>
                               <td className="py-1 pr-2">{field("tokyoAirShift")}</td>
                               <td className="py-1 pr-2">{field("osakaAirRegi")}</td>
@@ -1267,7 +1268,7 @@ export default function AdminPage() {
                           {aggResults.map(r => (
                             <tr key={r.masterId} className="border-b border-white/5">
                               <td className="py-2">
-                                <div className="font-medium text-white">{r.hpName || "—"}</div>
+                                <div className="font-medium text-white">{r.name || "—"}</div>
                                 <div className="text-xs text-white/40">{r.rank}</div>
                               </td>
                               <td className="text-right text-white/70">{r.tokyo > 0 ? `¥${r.tokyo.toLocaleString()}` : "—"}</td>

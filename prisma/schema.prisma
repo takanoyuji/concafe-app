@@ -138,6 +138,8 @@ model SalaryCastRecord {
   id          String @id @default(cuid())
   periodId    String
   castName    String
+  /// 計算時点の Cast.name の写し。給与明細は後から変わってはいけないので参照ではなく値で持つ。
+  /// Cast 側の列名変更に巻き込んで一括置換しないこと（2026-08-14 にこれで保存が落ちた）
   hpName      String @default("")
   rank        String @default("")
   basicPay    Float  @default(0)

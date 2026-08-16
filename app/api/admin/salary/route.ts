@@ -90,7 +90,7 @@ export async function POST(req: Request) {
         castRecords: {
           create: summary.casts.map(c => ({
             castName:    c.castName,
-            name:      hpNameMap.get(c.castName) ?? "",
+            hpName:      hpNameMap.get(c.castName) ?? "",
             rank:        c.rank,
             basicPay:    c.basicPay,
             commute:     c.commute,
