@@ -25,7 +25,7 @@ function wageCsv(rows: string[][]): File {
   return new File([text], "wage.csv", { type: "text/csv" });
 }
 
-function salaryReq(opts: { sales: File; wage: File; year?: number; month?: number; half?: number }) {
+function salaryReq(opts: { sales: File; wage: File; year?: number; month?: number; half?: number; save?: boolean }) {
   const form = new FormData();
   form.append("store", STORE);
   form.append("salesCsv", opts.sales);
@@ -33,6 +33,8 @@ function salaryReq(opts: { sales: File; wage: File; year?: number; month?: numbe
   if (opts.year)  form.append("year",  String(opts.year));
   if (opts.month) form.append("month", String(opts.month));
   if (opts.half)  form.append("half",  String(opts.half));
+  // 期間を送っても、保存の意思（save）が無ければDBには入らない
+  if (opts.save ?? Boolean(opts.year && opts.month && opts.half)) form.append("save", "1");
   return new Request("http://localhost/api/admin/salary", { method: "POST", body: form });
 }
 
@@ -114,10 +116,11 @@ describe("給与計算のDB保存", () => {
     expect(periods[0].castRecords[0].payment).toBe(13700);
   });
 
-  it("期間を指定しなければ計算結果だけ返し、DBには保存しない", async () => {
+  it("期間を送っても save を付けなければ計算結果だけ返し、DBには保存しない", async () => {
     const res = await salaryPOST(salaryReq({
       sales: salesCsv([["ドリンク", "サクラ", "内税", "10000", "8000", "10"]]),
       wage:  wageCsv([["佐倉花子", "9000", "500", "6:30"]]),
+      year: 2026, month: 8, half: 1, save: false,
     }));
     expect(res.status).toBe(200);
     const body = await res.json();

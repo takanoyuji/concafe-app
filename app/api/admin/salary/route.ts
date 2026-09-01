@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateSalary, CsvFormatError, type CastInput } from "@/lib/salary";
+import { calculateSalary, halfPeriodRange, CsvFormatError, type CastInput } from "@/lib/salary";
+import { fetchRemodriSalesByCast, isRemodriConfigured, RemodriError, type RemodriCastSales } from "@/lib/remodri";
 import { getRanksForPeriod } from "@/lib/rank";
 
 function storePrefix(storeName: string): "tokyo" | "osaka" | "nagoya" | null {
@@ -25,6 +26,8 @@ export async function POST(req: Request) {
   const yearStr  = formData.get("year")  as string | null;
   const monthStr = formData.get("month") as string | null;
   const halfStr  = formData.get("half")  as string | null;
+  // 期間は remodri の取得に必ず使う。DBに保存するかどうかは save で明示的に受け取る
+  const save     = formData.get("save") === "1";
 
   if (!store || !salesFile || !wageFile) {
     return NextResponse.json({ error: "store, salesCsv, wageCsv は必須です" }, { status: 400 });
@@ -60,6 +63,7 @@ export async function POST(req: Request) {
     .map(m => {
       const effectiveRank = monthlyRankMap?.get(m.id) ?? m.rank;
       return {
+        castCode:              m.castCode,
         castName:              String(m[regiField]  || ""),
         airShiftName:          String(m[shiftField] || ""),
         rank:                  effectiveRank,
@@ -72,10 +76,36 @@ export async function POST(req: Request) {
   const salesBuf = await salesFile.arrayBuffer();
   const wageBuf  = await wageFile.arrayBuffer();
 
+  // --- remodri（遠隔ドリンク会計）の取り込み ---
+  // 2026-08-16 に遠隔売上の記録先がエアレジから remodri へ移った。取り込まないと
+  // それ以降の業績・バックから遠隔分がまるごと抜ける。移行前の期間は0件が返る。
+  let remodriRows: RemodriCastSales[] = [];
+  if (isRemodriConfigured()) {
+    if (!year || !month) {
+      return NextResponse.json(
+        { error: "remodri と連携しているため、年・月の指定が必要です" },
+        { status: 400 }
+      );
+    }
+    const { from, to } = halfPeriodRange(year, month, half ?? 0);
+    try {
+      remodriRows = await fetchRemodriSalesByCast(prefix, from, to);
+    } catch (e) {
+      // 取り込めないまま計算すると遠隔売上が抜けた給与が出るので、静かに続行しない
+      if (e instanceof RemodriError) {
+        return NextResponse.json(
+          { error: `遠隔売上（remodri）を取り込めませんでした: ${e.message}` },
+          { status: 502 }
+        );
+      }
+      throw e;
+    }
+  }
+
   // CSVの形式が想定と違うときは計算せずに止める（0のまま保存させない）
   let summary;
   try {
-    summary = calculateSalary(salesBuf, wageBuf, casts);
+    summary = calculateSalary(salesBuf, wageBuf, casts, remodriRows);
   } catch (e) {
     if (e instanceof CsvFormatError) {
       return NextResponse.json({ error: e.message }, { status: 400 });
@@ -83,8 +113,8 @@ export async function POST(req: Request) {
     throw e;
   }
 
-  // --- DB 保管（期間指定があれば）---
-  if (year && month && half) {
+  // --- DB 保管（保存が指示されたときだけ）---
+  if (save && year && month && half) {
     // 同じ期間があれば削除→再作成（upsert相当）
     const existing = await prisma.salaryPeriod.findUnique({
       where: { storeName_year_month_half: { storeName: store, year, month, half } },

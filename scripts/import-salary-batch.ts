@@ -195,6 +195,7 @@ async function main() {
         const casts: CastInput[] = masters
           .filter((m) => !m.retired && (m[regiField] || m[shiftField]))
           .map((m) => ({
+            castCode: m.castCode,
             castName: String(m[regiField] || ""),
             airShiftName: String(m[shiftField] || ""),
             rank: m.rank,

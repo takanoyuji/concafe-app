@@ -1,4 +1,7 @@
+import type { RemodriCastSales } from "@/lib/remodri";
+
 export interface CastInput {
+  castCode: string;      // 不変コード。remodri の売上と突き合わせる
   castName: string;      // キャスト名（売上CSVのカテゴリーと照合）
   airShiftName: string;  // AirShift氏名（勤怠CSVと照合）
   rank: string;          // ランク名
@@ -13,6 +16,10 @@ export interface CastResult {
   commute: number;
   grossProfit: number;
   totalSales: number;
+  /** うち remodri（遠隔）分の税込売上 */
+  remoteSales: number;
+  /** うち remodri 分の粗利（税調整後）。バックの内訳確認用 */
+  remoteGrossProfit: number;
   back: number;
   salary: number;
   payment: number;
@@ -30,6 +37,26 @@ export interface SalarySummary {
   laborCost: number;           // 人件費合計（キャスト+8000）
   contributionProfit: number;  // 貢献利益
   workHours: string;
+
+  // --- 遠隔売上の内訳（二重計上に気づけるように分けて持つ）---
+  /** エアレジCSVの 遠隔_ 分（税込）。2026-08-16 の remodri 移行後は0のはず */
+  airRegiRemoteSales: number;
+  /** remodri から取り込んだ分（税込） */
+  remodriSales: number;
+  /** remodri 分の粗利（税調整後） */
+  remodriGrossProfit: number;
+  /** remodri に売上があるのにキャストマスタと紐づかなかった分。バックが付いていない */
+  unmatchedRemodriCasts: { castCode: string; name: string; amount: number }[];
+}
+
+/** 給与期間（半月）を remodri に渡す YYYY-MM-DD の範囲に変換する。half=0 は月全体 */
+export function halfPeriodRange(year: number, month: number, half: number): { from: string; to: string } {
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const d = (day: number) => `${year}-${pad(month)}-${pad(day)}`;
+  if (half === 1) return { from: d(1), to: d(15) };
+  if (half === 2) return { from: d(16), to: d(lastDay) };
+  return { from: d(1), to: d(lastDay) };
 }
 
 /** CSVの形式が想定と違うことを呼び出し元に伝える。API側で400にして計算させない */
@@ -160,7 +187,9 @@ interface WageRow {
 export function calculateSalary(
   salesBuf: ArrayBuffer,
   wageBuf: ArrayBuffer,
-  casts: CastInput[]
+  casts: CastInput[],
+  /** remodri のキャスト別売上。移行前の期間は空配列（＝従来どおりの計算になる） */
+  remodriRows: RemodriCastSales[] = []
 ): SalarySummary {
   // --- CSV パース ---
   // 文字コードはファイルごとに判定する（決め打ちにしない）
@@ -221,6 +250,9 @@ export function calculateSalary(
     salesMap.set(cat, (salesMap.get(cat) ?? 0) + s.販売総売上);
   }
 
+  // --- remodri（遠隔）の取り込み ---
+  const remodriByCast = new Map(remodriRows.map(r => [r.castCode, r] as const));
+
   // --- キャスト別計算 ---
   const results: CastResult[] = [];
   const COMMUTE_ZERO_RANKS = ["店長", "プラチナ", "ブラック", "ゴールド"];
@@ -229,8 +261,12 @@ export function calculateSalary(
     const wageEntry = wageMap.get(c.airShiftName) ?? { basic: 0, commute: 0, laborTimes: [] };
     const basicPay = wageEntry.basic;
     let commute = wageEntry.commute;
-    const grossProfit = grossMap.get(c.castName) ?? 0;
-    const totalSales = salesMap.get(c.castName) ?? 0;
+    // remodri は税込。エアレジの内税行と同じ扱いで、粗利から売上の消費税相当を引く
+    const rem = remodriByCast.get(c.castCode);
+    const remoteSales = rem?.amount ?? 0;
+    const remoteGrossProfit = rem ? rem.profit - rem.amount * 0.1 : 0;
+    const grossProfit = (grossMap.get(c.castName) ?? 0) + remoteGrossProfit;
+    const totalSales = (salesMap.get(c.castName) ?? 0) + remoteSales;
 
     // 時給計 = 基本給 + 通勤手当
     let hourlyTotal = basicPay + commute;
@@ -262,6 +298,8 @@ export function calculateSalary(
       commute,
       grossProfit,
       totalSales,
+      remoteSales,
+      remoteGrossProfit,
       back,
       salary,
       payment,
@@ -271,18 +309,30 @@ export function calculateSalary(
   // --- 業績サマリー ---
   // 外税商品は×1.1して全額税込に統一
   const taxIncl = (s: SalesRow) => s.税区分?.trim() === "外税" ? Math.round(s.販売総売上 * 1.1) : s.販売総売上;
-  const totalSalesTaxIncl = sales.reduce((a, s) => a + taxIncl(s), 0);
-  const remoteSales       = sales.filter(s => s.isRemote).reduce((a, s) => a + taxIncl(s), 0);
+  const airRegiSales      = sales.reduce((a, s) => a + taxIncl(s), 0);
+  const airRegiRemoteSales = sales.filter(s => s.isRemote).reduce((a, s) => a + taxIncl(s), 0);
+  // remodri 分（税込）。移行前の期間は0件なので何も足されない
+  const remodriSales      = remodriRows.reduce((a, r) => a + r.amount, 0);
+  const remodriGrossProfit = remodriRows.reduce((a, r) => a + (r.profit - r.amount * 0.1), 0);
+
+  const totalSalesTaxIncl = airRegiSales + remodriSales;
+  const remoteSales       = airRegiRemoteSales + remodriSales;
   const localSales        = totalSalesTaxIncl - remoteSales;
   // 消費税 = 売上（税込）÷ 11
   const taxAmount         = Math.round(totalSalesTaxIncl / 11);
   // 売上総利益 = 粗利総額から内税分の消費税を控除済み
-  const grossProfitSum    = sales.reduce((a, s) => a + s.粗利総額, 0);
+  const grossProfitSum    = sales.reduce((a, s) => a + s.粗利総額, 0) + remodriGrossProfit;
   // 仕入 = 売上（税抜）− 売上総利益
   const purchases         = totalSalesTaxIncl - taxAmount - grossProfitSum;
   const castPay           = results.reduce((a, r) => a + r.payment, 0);
   const laborCost         = castPay + 8000;
   const contributionProfit = grossProfitSum - castPay;
+
+  // remodri に売上があるのにマスタと紐づかなかったキャスト（バックが付いていない）
+  const knownCodes = new Set(casts.map(c => c.castCode));
+  const unmatchedRemodriCasts = remodriRows
+    .filter(r => !knownCodes.has(r.castCode))
+    .map(r => ({ castCode: r.castCode, name: r.name, amount: r.amount }));
 
   // 総労働時間
   let totalH = 0;
@@ -310,6 +360,10 @@ export function calculateSalary(
     laborCost,
     contributionProfit,
     workHours,
+    airRegiRemoteSales,
+    remodriSales,
+    remodriGrossProfit,
+    unmatchedRemodriCasts,
   };
 }
 

@@ -11,8 +11,11 @@ interface MenuItem { id: string; imageUrl: string; alt: string; order: number }
 interface ResetLog { id: string; userId: string | null; email: string | null; amount: number; idempotencyKey: string | null; createdAt: string }
 interface CastRank { id: string; name: string; backRate: number; order: number }
 interface CastMaster { id: string; castCode: string; name: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; }
-interface CastResult { castName: string; rank: string; basicPay: number; commute: number; grossProfit: number; totalSales: number; back: number; salary: number; payment: number }
-interface SalarySummary { casts: CastResult[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; purchases: number; castPay: number; laborCost: number; contributionProfit: number; workHours: string }
+interface CastResult { castName: string; rank: string; basicPay: number; commute: number; grossProfit: number; totalSales: number; remoteSales?: number; remoteGrossProfit?: number; back: number; salary: number; payment: number }
+interface SalarySummary { casts: CastResult[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; purchases: number; castPay: number; laborCost: number; contributionProfit: number; workHours: string;
+  // 遠隔売上の内訳。エアレジ側と remodri 側の両方に金額があれば二重計上を疑う
+  airRegiRemoteSales?: number; remodriSales?: number; remodriGrossProfit?: number;
+  unmatchedRemodriCasts?: { castCode: string; name: string; amount: number }[] }
 interface AggResult { masterId: string; name: string; rank: string; tokyo: number; osaka: number; nagoya: number; total: number; }
 interface PayMethodStat { amount: number; txCount: number; fee: number; }
 interface AccountingResult {
@@ -348,11 +351,11 @@ export default function AdminPage() {
       form.append("store", salaryStore);
       form.append("salesCsv", salesFile);
       form.append("wageCsv", wageFile);
-      if (saveToDB) {
-        form.append("year",  String(salaryYear));
-        form.append("month", String(salaryMonth));
-        form.append("half",  String(salaryHalf));
-      }
+      // 期間は remodri（遠隔売上）の取得に必要なので、保存しないときも必ず送る
+      form.append("year",  String(salaryYear));
+      form.append("month", String(salaryMonth));
+      form.append("half",  String(salaryHalf));
+      if (saveToDB) form.append("save", "1");
       const res = await fetch("/api/admin/salary", { method: "POST", body: form });
       const d = await res.json();
       if (res.ok) {
@@ -1445,8 +1448,30 @@ export default function AdminPage() {
                     const Divider = () => <div className="border-t border-white/20 my-1" />;
                     return (
                       <div className="space-y-0.5">
+                        {(s.airRegiRemoteSales ?? 0) > 0 && (s.remodriSales ?? 0) > 0 && (
+                          <div className="mb-3 rounded border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200">
+                            <div className="font-bold">遠隔売上が二重計上の可能性があります</div>
+                            エアレジの遠隔_カテゴリー（{fmt(s.airRegiRemoteSales ?? 0)}）と
+                            remodri（{fmt(s.remodriSales ?? 0)}）の両方に金額があります。
+                            2026-08-16 以降の遠隔は remodri に一本化されている想定です。
+                            エアレジ側にも遠隔が入力されていないか確認してください。
+                          </div>
+                        )}
+                        {(s.unmatchedRemodriCasts?.length ?? 0) > 0 && (
+                          <div className="mb-3 rounded border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200">
+                            <div className="font-bold">remodri の売上でキャストに紐づかない分があります</div>
+                            バックが計算されていません。キャストマスタを確認してください：
+                            {s.unmatchedRemodriCasts!.map(u => `${u.name || u.castCode}（${fmt(u.amount)}）`).join("、")}
+                          </div>
+                        )}
                         <Row label="売上（税込）" value={fmt(s.totalSalesTaxIncl)} bold />
                         <Row label="　遠隔" value={fmt(s.remoteSales)} indent={1} />
+                        {(s.remodriSales ?? 0) > 0 && (
+                          <Row label="　　うち remodri" value={fmt(s.remodriSales ?? 0)} indent={2} />
+                        )}
+                        {(s.airRegiRemoteSales ?? 0) > 0 && (s.remodriSales ?? 0) > 0 && (
+                          <Row label="　　うちエアレジ" value={fmt(s.airRegiRemoteSales ?? 0)} indent={2} />
+                        )}
                         <Row label="　その他" value={fmt(s.localSales)} indent={1} />
                         <Row label="　消費税" value={`△ ${fmt(s.taxAmount)}`} indent={1} />
                         <Divider />

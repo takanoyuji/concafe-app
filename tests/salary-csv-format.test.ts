@@ -23,6 +23,7 @@ const asUtf8  = (t: string) => new TextEncoder().encode(t).buffer as ArrayBuffer
 const asUtf8Bom = (t: string) => new TextEncoder().encode("﻿" + t).buffer as ArrayBuffer;
 
 const CASTS = [{
+  castCode: "C9002",
   castName: "サクラ", airShiftName: "佐倉花子", rank: "シルバー",
   backRate: 0.3, exemptFromCommuteRule: false,
 }];

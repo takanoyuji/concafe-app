@@ -24,6 +24,7 @@ function buildCasts(
   return masters
     .filter(m => m[regiField] || m[shiftField])
     .map(m => ({
+      castCode:              m.castCode,
       castName:              String(m[regiField]  || ""),
       airShiftName:          String(m[shiftField] || ""),
       rank:                  m.rank,
