@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getRanksForPeriod } from "@/lib/rank";
+import { storeCoverage, type StoreCoverage } from "@/lib/salaryCoverage";
 
 function storePrefix(storeName: string): "tokyo" | "osaka" | "nagoya" | null {
   if (storeName.includes("池袋") || storeName === "東京") return "tokyo";
@@ -10,9 +11,7 @@ function storePrefix(storeName: string): "tokyo" | "osaka" | "nagoya" | null {
   return null;
 }
 
-function halfLabel(half: number) {
-  return half === 0 ? "全体" : half === 1 ? "前半" : "後半";
-}
+import { halfLabel } from "@/lib/salaryCoverage";
 
 export interface AggDbResult {
   masterId: string;
@@ -22,6 +21,16 @@ export interface AggDbResult {
   osaka: number;
   nagoya: number;
   total: number;
+}
+
+/** 全店舗の人件費まとめ。店舗が欠けていても合計だけ見て誤解しないよう coverage を添える */
+export interface LaborTotals {
+  castPay: number;
+  otherLaborCost: number;
+  laborCost: number;
+  totalSalesTaxIncl: number;
+  grossProfit: number;
+  contributionProfit: number;
 }
 
 export interface StoreReport {
@@ -60,8 +69,15 @@ export async function GET(req: Request) {
     getRanksForPeriod(year, month),
   ]);
 
+  const coverage: StoreCoverage[] = storeCoverage(periods.map(p => ({ storeName: p.storeName, half: p.half })));
+
   if (periods.length === 0)
-    return NextResponse.json({ results: [], storeReports: [] });
+    return NextResponse.json({
+      results: [],
+      storeReports: [],
+      coverage,
+      totals: { castPay: 0, otherLaborCost: 0, laborCost: 0, totalSalesTaxIncl: 0, grossProfit: 0, contributionProfit: 0 },
+    });
 
   // Cast aggregate per masterId
   const resultMap = new Map<string, { name: string; rank: string; tokyo: number; osaka: number; nagoya: number }>();
@@ -132,5 +148,18 @@ export async function GET(req: Request) {
 
   const storeReports = [...storeReportMap.values()];
 
-  return NextResponse.json({ results, storeReports });
+  // 全店舗の人件費合計。その他人件費は laborCost と castPay の差（1期間あたり8,000円）
+  const totals: LaborTotals = storeReports.reduce<LaborTotals>(
+    (a, r) => ({
+      castPay:            a.castPay            + r.castPay,
+      otherLaborCost:     a.otherLaborCost     + (r.laborCost - r.castPay),
+      laborCost:          a.laborCost          + r.laborCost,
+      totalSalesTaxIncl:  a.totalSalesTaxIncl  + r.totalSalesTaxIncl,
+      grossProfit:        a.grossProfit        + r.grossProfit,
+      contributionProfit: a.contributionProfit + r.contributionProfit,
+    }),
+    { castPay: 0, otherLaborCost: 0, laborCost: 0, totalSalesTaxIncl: 0, grossProfit: 0, contributionProfit: 0 }
+  );
+
+  return NextResponse.json({ results, storeReports, coverage, totals });
 }

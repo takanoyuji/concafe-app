@@ -24,11 +24,16 @@ interface AccountingResult {
   base: PayMethodStat; credit: PayMethodStat; qr: PayMethodStat;
   cash: number; totalSales: number; totalFee: number;
 }
+interface StoreCoverage { storeName: string; foundHalves: number[]; missingHalves: string[] }
+interface LaborTotals { castPay: number; otherLaborCost: number; laborCost: number; totalSalesTaxIncl: number; grossProfit: number; contributionProfit: number }
 interface StoreReport { storeName: string; halves: string[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; castPay: number; laborCost: number; contributionProfit: number; }
 interface SalaryPeriod { id: string; storeName: string; year: number; month: number; half: number; updatedAt: string; summaryRecord: { totalSalesTaxIncl: number; grossProfit: number; castPay: number; laborCost: number; contributionProfit: number; } | null }
 // hpName は SalaryCastRecord の列名。Cast の name とは別物なので一括置換しないこと
 interface HistoryCastRecord extends CastResult { hpName: string; }
 interface PeriodDetail { id: string; storeName: string; year: number; month: number; half: number; castRecords: HistoryCastRecord[]; summaryRecord: SalarySummary | null }
+
+/** 金額表示。既存の各ブロック内 fmt と同じ書式 */
+const yen = (n: number) => `¥${Math.round(n).toLocaleString()}`;
 
 type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary";
 
@@ -109,6 +114,8 @@ export default function AdminPage() {
   const [showAgg, setShowAgg]                 = useState(false);
   const [aggCalculating, setAggCalculating]   = useState(false);
   const [aggResults, setAggResults]           = useState<AggResult[] | null>(null);
+  const [aggCoverage, setAggCoverage]         = useState<StoreCoverage[]>([]);
+  const [aggTotals, setAggTotals]             = useState<LaborTotals | null>(null);
   const [aggStoreReports, setAggStoreReports] = useState<StoreReport[]>([]);
   const [aggYear,  setAggYear]                = useState(now.getFullYear());
   const [aggMonth, setAggMonth]               = useState(now.getMonth() + 1);
@@ -731,7 +738,12 @@ export default function AdminPage() {
     try {
       const res = await fetch(`/api/admin/salary/aggregate-db?year=${aggYear}&month=${aggMonth}`);
       const d = await res.json();
-      if (res.ok) { setAggResults(d.results); setAggStoreReports(d.storeReports ?? []); }
+      if (res.ok) {
+        setAggResults(d.results);
+        setAggStoreReports(d.storeReports ?? []);
+        setAggCoverage(d.coverage ?? []);
+        setAggTotals(d.totals ?? null);
+      }
       else flash(d.error ?? "集計エラー", true);
     } finally { setAggCalculating(false); }
   };
@@ -1207,6 +1219,87 @@ export default function AdminPage() {
                       {aggCalculating ? "集計中..." : "DBから集計"}
                     </button>
                   </div>
+                  {/* 店舗が揃っていないときの警告。合計だけ見て少ない人件費を信じないための歯止め */}
+                  {aggCoverage.some(c => c.missingHalves.length > 0) && (
+                    <div className="rounded border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200 space-y-1">
+                      <div className="font-bold">
+                        {aggYear}/{String(aggMonth).padStart(2, "0")} は全店舗が揃っていません
+                      </div>
+                      <div>下の合計には、揃っていない店舗の人件費が含まれていません。</div>
+                      <ul className="pl-4 list-disc space-y-0.5">
+                        {aggCoverage.filter(c => c.missingHalves.length > 0).map(c => (
+                          <li key={c.storeName}>
+                            {c.storeName}：{c.missingHalves.join("・")}が未計算
+                            {c.foundHalves.length === 0 && "（この月のデータがありません）"}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* 全店舗の人件費 */}
+                  {aggTotals && aggStoreReports.length > 0 && (
+                    <div className="glass-dark p-4 space-y-2">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-bold text-star-300 text-sm">全店舗 人件費</span>
+                        <span className="text-xs text-white/40">
+                          {aggCoverage.filter(c => c.missingHalves.length === 0).length} / {aggCoverage.length} 店舗
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <div className="text-xs text-white/50">キャスト給与</div>
+                          <div className="font-bold">{yen(aggTotals.castPay)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-white/50">その他人件費</div>
+                          <div className="font-bold">{yen(aggTotals.otherLaborCost)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-white/50">人件費合計</div>
+                          <div className="font-bold text-neon-violet">{yen(aggTotals.laborCost)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-white/50">売上に対する比率</div>
+                          <div className="font-bold">
+                            {aggTotals.totalSalesTaxIncl > 0
+                              ? `${(aggTotals.laborCost / aggTotals.totalSalesTaxIncl * 100).toFixed(1)}%`
+                              : "—"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto pt-1">
+                        <table className="w-full text-xs min-w-[420px]">
+                          <thead>
+                            <tr className="text-white/40 border-b border-white/10">
+                              <th className="text-left pb-1 pr-2">店舗</th>
+                              <th className="text-right pb-1 pr-2">キャスト給与</th>
+                              <th className="text-right pb-1 pr-2">人件費</th>
+                              <th className="text-right pb-1">状態</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {aggCoverage.map(c => {
+                              const rep = aggStoreReports.find(r => r.storeName === c.storeName);
+                              return (
+                                <tr key={c.storeName} className="border-b border-white/5">
+                                  <td className="py-1 pr-2">{c.storeName}</td>
+                                  <td className="py-1 pr-2 text-right">{rep ? yen(rep.castPay) : "—"}</td>
+                                  <td className="py-1 pr-2 text-right">{rep ? yen(rep.laborCost) : "—"}</td>
+                                  <td className="py-1 text-right">
+                                    {c.missingHalves.length === 0
+                                      ? <span className="text-emerald-300">揃っている</span>
+                                      : <span className="text-amber-300">{c.missingHalves.join("・")}が未計算</span>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 店舗別P&L */}
                   {aggStoreReports.length > 0 && (
                     <div className="space-y-2">
@@ -1293,7 +1386,9 @@ export default function AdminPage() {
                       </table>
                     </div>
                   )}
-                  {aggResults && aggResults.length === 0 && <p className="text-white/40 text-sm text-center py-4">該当月の給与データがDBにありません</p>}
+                  {aggResults && aggResults.length === 0 && aggStoreReports.length === 0 && (
+                    <p className="text-white/40 text-sm text-center py-4">該当月の給与データがDBにありません</p>
+                  )}
                 </div>
               )}
             </div>
