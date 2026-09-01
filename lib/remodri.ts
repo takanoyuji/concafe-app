@@ -40,15 +40,18 @@ export function isRemodriConfigured(): boolean {
 }
 
 /**
- * 指定期間・店舗のキャスト別売上を取得する。
+ * 指定期間のキャスト別売上を取得する。storeCode を省くと全店舗まとめて返す。
+ *
+ * 遠隔はどの店舗の伝票でもキャスト本人の所属店舗に計上するため、通常は
+ * 店舗で絞らずに取得し、attributeByPrimaryStore() で振り分ける。
  *
  * 取り込めなかったときは 0件を返さずに例外にする。
  * 静かに0にすると、遠隔売上が抜けたまま給与が確定してしまうため。
  */
 export async function fetchRemodriSalesByCast(
-  storeCode: RemodriStoreCode,
   from: string,
-  to: string
+  to: string,
+  storeCode?: RemodriStoreCode
 ): Promise<RemodriCastSales[]> {
   const base = process.env.REMODRI_API_URL;
   const key = process.env.REMODRI_API_KEY;
@@ -58,8 +61,8 @@ export async function fetchRemodriSalesByCast(
 
   const url =
     `${base.replace(/\/$/, "")}/api/v1/sales/summary` +
-    `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}` +
-    `&groupBy=cast&storeCode=${encodeURIComponent(storeCode)}`;
+    `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&groupBy=cast` +
+    (storeCode ? `&storeCode=${encodeURIComponent(storeCode)}` : "");
 
   let res: Response;
   try {
@@ -95,4 +98,29 @@ export async function fetchRemodriSalesByCast(
     // キャスト未設定の明細（key が "(未設定)"）は誰のバックにもできないが、
     // 店舗の売上には含めるのでそのまま残す
     .filter(r => r.castCode !== "");
+}
+
+/**
+ * 遠隔売上をキャストの所属店舗に振り分ける。
+ *
+ * 伝票がどの店舗で立ったかは見ない。遠隔は店舗をまたいで接客するため、
+ * 売上も人件費も本人の所属店舗に計上する（2026-09-01 決定）。
+ * 推し／もらったの折半は remodri 側で済んでいるので、ここでは振り分けるだけ。
+ *
+ * 所属店舗が分からないキャストは orphans に入れる。どの店舗にも計上されないので、
+ * 呼び出し元が必ず画面に出すこと（黙って落とすと売上が消える）。
+ */
+export function attributeByPrimaryStore(
+  rows: RemodriCastSales[],
+  primaryStoreByCastCode: Map<string, string>,
+  storeCode: RemodriStoreCode
+): { mine: RemodriCastSales[]; orphans: RemodriCastSales[] } {
+  const mine: RemodriCastSales[] = [];
+  const orphans: RemodriCastSales[] = [];
+  for (const row of rows) {
+    const primary = primaryStoreByCastCode.get(row.castCode);
+    if (!primary) orphans.push(row);
+    else if (primary === storeCode) mine.push(row);
+  }
+  return { mine, orphans };
 }

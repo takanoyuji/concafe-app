@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import iconv from "iconv-lite";
 import { calculateSalary, halfPeriodRange, type CastInput } from "@/lib/salary";
-import type { RemodriCastSales } from "@/lib/remodri";
+import { attributeByPrimaryStore, type RemodriCastSales } from "@/lib/remodri";
 
 const SALES_HEADER = ["商品名", "カテゴリー", "税区分", "販売総売上", "粗利総額", "販売商品数"];
 const WAGE_HEADER  = ["氏名", "基本給", "通勤手当", "労働時間"];
@@ -105,5 +105,35 @@ describe("給与期間の日付範囲", () => {
   });
   it("0は月全体", () => {
     expect(halfPeriodRange(2026, 9, 0)).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+  });
+});
+
+describe("遠隔売上の所属店舗への振り分け", () => {
+  // 伝票がどの店舗で立ったかは見ない。キャスト本人の所属店舗に寄せる
+  const rows = remodri([
+    { castCode: "C0018", name: "ほむら",   amount: 48575 },
+    { castCode: "C0006", name: "ARIA",     amount: 2420 },
+    { castCode: "C0037", name: "伊藤",     amount: 13210 },
+  ]);
+  const primary = new Map([["C0018", "nagoya"], ["C0006", "tokyo"]]);
+
+  it("所属店舗が一致する分だけを取り出す", () => {
+    expect(attributeByPrimaryStore(rows, primary, "nagoya").mine.map(r => r.castCode)).toEqual(["C0018"]);
+    expect(attributeByPrimaryStore(rows, primary, "tokyo").mine.map(r => r.castCode)).toEqual(["C0006"]);
+    expect(attributeByPrimaryStore(rows, primary, "osaka").mine).toEqual([]);
+  });
+
+  it("所属店舗が分からないキャストは orphans に出る（どこにも計上しない）", () => {
+    const r = attributeByPrimaryStore(rows, primary, "tokyo");
+    expect(r.orphans.map(o => o.castCode)).toEqual(["C0037"]);
+    expect(r.mine.map(o => o.castCode)).not.toContain("C0037");
+  });
+
+  it("3店舗に振り分けても合計が元と一致し、二重計上にならない", () => {
+    const full = new Map([["C0018", "nagoya"], ["C0006", "tokyo"], ["C0037", "osaka"]]);
+    const total = (["tokyo", "osaka", "nagoya"] as const)
+      .flatMap(s => attributeByPrimaryStore(rows, full, s).mine)
+      .reduce((a, r) => a + r.amount, 0);
+    expect(total).toBe(48575 + 2420 + 13210);
   });
 });

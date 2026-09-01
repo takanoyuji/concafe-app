@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateSalary, halfPeriodRange, CsvFormatError, type CastInput } from "@/lib/salary";
-import { fetchRemodriSalesByCast, isRemodriConfigured, RemodriError, type RemodriCastSales } from "@/lib/remodri";
+import { fetchRemodriSalesByCast, attributeByPrimaryStore, isRemodriConfigured, RemodriError, type RemodriCastSales } from "@/lib/remodri";
 import { getRanksForPeriod } from "@/lib/rank";
 
 function storePrefix(storeName: string): "tokyo" | "osaka" | "nagoya" | null {
@@ -44,7 +44,11 @@ export async function POST(req: Request) {
   const half  = halfStr  ? parseInt(halfStr,  10) : null;
 
   const [masters, castRanks, monthlyRankMap] = await Promise.all([
-    prisma.cast.findMany({ where: { retired: false } }),
+    prisma.cast.findMany({
+      where: { retired: false },
+      // 遠隔売上は所属店舗（主たる店舗）に計上するので一緒に引く
+      include: { stores: { where: { isPrimary: true }, take: 1, include: { store: { select: { slug: true } } } } },
+    }),
     prisma.castRank.findMany(),
     year && month ? getRanksForPeriod(year, month) : Promise.resolve(null),
   ]);
@@ -58,8 +62,46 @@ export async function POST(req: Request) {
   const regiField  = `${prefix}AirRegi`  as keyof typeof masters[0];
   const shiftField = `${prefix}AirShift` as keyof typeof masters[0];
 
+  // --- remodri（遠隔ドリンク会計）の取り込み ---
+  // 2026-08-16 に遠隔売上の記録先がエアレジから remodri へ移った。取り込まないと
+  // それ以降の業績・バックから遠隔分がまるごと抜ける。移行前の期間は0件が返る。
+  let remodriRows: RemodriCastSales[] = [];
+  let remodriOrphans: RemodriCastSales[] = [];
+  if (isRemodriConfigured()) {
+    if (!year || !month) {
+      return NextResponse.json(
+        { error: "remodri と連携しているため、年・月の指定が必要です" },
+        { status: 400 }
+      );
+    }
+    const { from, to } = halfPeriodRange(year, month, half ?? 0);
+    try {
+      // 伝票の店舗ではなくキャストの所属店舗に寄せるため、全店まとめて取得して振り分ける
+      const all = await fetchRemodriSalesByCast(from, to);
+      const primaryByCode = new Map(
+        masters
+          .map(m => [m.castCode, m.stores[0]?.store.slug] as const)
+          .filter((e): e is readonly [string, string] => Boolean(e[1]))
+      );
+      const attributed = attributeByPrimaryStore(all, primaryByCode, prefix);
+      remodriRows = attributed.mine;
+      remodriOrphans = attributed.orphans;
+    } catch (e) {
+      // 取り込めないまま計算すると遠隔売上が抜けた給与が出るので、静かに続行しない
+      if (e instanceof RemodriError) {
+        return NextResponse.json(
+          { error: `遠隔売上（remodri）を取り込めませんでした: ${e.message}` },
+          { status: 502 }
+        );
+      }
+      throw e;
+    }
+  }
+
+  // 遠隔のみのキャスト（その店舗のエアレジ名が無い人）も対象に含める
+  const hasRemodri = new Set(remodriRows.map(r => r.castCode));
   const casts: CastInput[] = masters
-    .filter(m => m[regiField] || m[shiftField])
+    .filter(m => m[regiField] || m[shiftField] || hasRemodri.has(m.castCode))
     .map(m => {
       const effectiveRank = monthlyRankMap?.get(m.id) ?? m.rank;
       return {
@@ -75,32 +117,6 @@ export async function POST(req: Request) {
 
   const salesBuf = await salesFile.arrayBuffer();
   const wageBuf  = await wageFile.arrayBuffer();
-
-  // --- remodri（遠隔ドリンク会計）の取り込み ---
-  // 2026-08-16 に遠隔売上の記録先がエアレジから remodri へ移った。取り込まないと
-  // それ以降の業績・バックから遠隔分がまるごと抜ける。移行前の期間は0件が返る。
-  let remodriRows: RemodriCastSales[] = [];
-  if (isRemodriConfigured()) {
-    if (!year || !month) {
-      return NextResponse.json(
-        { error: "remodri と連携しているため、年・月の指定が必要です" },
-        { status: 400 }
-      );
-    }
-    const { from, to } = halfPeriodRange(year, month, half ?? 0);
-    try {
-      remodriRows = await fetchRemodriSalesByCast(prefix, from, to);
-    } catch (e) {
-      // 取り込めないまま計算すると遠隔売上が抜けた給与が出るので、静かに続行しない
-      if (e instanceof RemodriError) {
-        return NextResponse.json(
-          { error: `遠隔売上（remodri）を取り込めませんでした: ${e.message}` },
-          { status: 502 }
-        );
-      }
-      throw e;
-    }
-  }
 
   // CSVの形式が想定と違うときは計算せずに止める（0のまま保存させない）
   let summary;
@@ -155,8 +171,8 @@ export async function POST(req: Request) {
         },
       },
     });
-    return NextResponse.json({ summary, periodId: period.id });
+    return NextResponse.json({ summary, periodId: period.id, remodriOrphans });
   }
 
-  return NextResponse.json({ summary });
+  return NextResponse.json({ summary, remodriOrphans });
 }

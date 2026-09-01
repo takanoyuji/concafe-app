@@ -78,6 +78,8 @@ export default function AdminPage() {
   const [wageFile, setWageFile] = useState<File | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [salarySummary, setSalarySummary] = useState<SalarySummary | null>(null);
+  // 所属店舗が分からず、どの店舗にも計上されなかった遠隔売上
+  const [remodriOrphans, setRemodriOrphans] = useState<{ castCode: string; name: string; amount: number }[]>([]);
   const now = new Date();
   const [salaryYear,  setSalaryYear]  = useState(now.getFullYear());
   const [salaryMonth, setSalaryMonth] = useState(now.getMonth() + 1);
@@ -360,6 +362,7 @@ export default function AdminPage() {
       const d = await res.json();
       if (res.ok) {
         setSalarySummary(d.summary);
+        setRemodriOrphans(d.remodriOrphans ?? []);
         if (saveToDB && d.periodId) { flash("計算完了・DB保存しました"); fetchAll(); }
       } else { flash(d.error ?? "計算エラー", true); }
     } finally {
@@ -1455,6 +1458,13 @@ export default function AdminPage() {
                             remodri（{fmt(s.remodriSales ?? 0)}）の両方に金額があります。
                             2026-08-16 以降の遠隔は remodri に一本化されている想定です。
                             エアレジ側にも遠隔が入力されていないか確認してください。
+                          </div>
+                        )}
+                        {remodriOrphans.length > 0 && (
+                          <div className="mb-3 rounded border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200">
+                            <div className="font-bold">所属店舗が分からない遠隔売上があります</div>
+                            どの店舗の売上にも計上されていません。キャストの所属店舗を設定してください：
+                            {remodriOrphans.map(o => `${o.name || o.castCode}（${fmt(o.amount)}）`).join("、")}
                           </div>
                         )}
                         {(s.unmatchedRemodriCasts?.length ?? 0) > 0 && (
