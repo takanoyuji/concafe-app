@@ -15,7 +15,9 @@ interface CastResult { castName: string; rank: string; basicPay: number; commute
 interface SalarySummary { casts: CastResult[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; purchases: number; castPay: number; laborCost: number; contributionProfit: number; workHours: string;
   // 遠隔売上の内訳。エアレジ側と remodri 側の両方に金額があれば二重計上を疑う
   airRegiRemoteSales?: number; remodriSales?: number; remodriGrossProfit?: number;
-  unmatchedRemodriCasts?: { castCode: string; name: string; amount: number }[] }
+  unmatchedRemodriCasts?: { castCode: string; name: string; amount: number }[];
+  // 伝票単位の全体割引（マイナス値）。API経路のときだけ入る
+  orderDiscount?: number }
 interface AggResult { masterId: string; name: string; rank: string; tokyo: number; osaka: number; nagoya: number; total: number; }
 interface PayMethodStat { amount: number; txCount: number; fee: number; }
 interface AccountingResult {
@@ -79,6 +81,8 @@ export default function AdminPage() {
 
   // Salary form
   const [salaryStore, setSalaryStore] = useState("東京");
+  // 売上の出どころ。既定はAirレジ API。CSVは取り込みが止まっているときのフォールバック
+  const [salarySource, setSalarySource] = useState<"api" | "csv">("api");
   const [salesFile, setSalesFile] = useState<File | null>(null);
   const [wageFile, setWageFile] = useState<File | null>(null);
   const [calculating, setCalculating] = useState(false);
@@ -385,13 +389,15 @@ export default function AdminPage() {
 
   // Salary calculation
   const runSalaryCalc = async () => {
-    if (!salesFile || !wageFile) { flash("売上CSVと人件費CSVをアップロードしてください", true); return; }
+    if (!wageFile) { flash("人件費CSVをアップロードしてください", true); return; }
+    if (salarySource === "csv" && !salesFile) { flash("売上CSVをアップロードしてください", true); return; }
     setCalculating(true);
     setSalarySummary(null);
     try {
       const form = new FormData();
       form.append("store", salaryStore);
-      form.append("salesCsv", salesFile);
+      form.append("source", salarySource);
+      if (salesFile) form.append("salesCsv", salesFile);
       form.append("wageCsv", wageFile);
       // 期間は remodri（遠隔売上）の取得に必要なので、保存しないときも必ず送る
       form.append("year",  String(salaryYear));
@@ -1225,11 +1231,37 @@ export default function AdminPage() {
                   </select>
                 </div>
               </div>
+              {/* 売上の出どころ。2026-09 に Airレジ API を既定にした。CSVはフォールバックとして残す */}
+              <div className="flex items-center gap-4 text-sm flex-wrap">
+                <span className="text-xs text-white/60">売上の出どころ</span>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="salarySource" className="accent-neon-violet"
+                    checked={salarySource === "api"}
+                    onChange={() => { setSalarySource("api"); setSalesFile(null); }} />
+                  <span>Airレジ API</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="salarySource" className="accent-neon-violet"
+                    checked={salarySource === "csv"} onChange={() => setSalarySource("csv")} />
+                  <span className="text-white/70">売上CSV</span>
+                </label>
+                <span className="text-xs text-white/40">
+                  {salarySource === "api"
+                    ? "売上CSVのアップロードは不要です（人件費CSVは必要）"
+                    : "62日より前の期間を計算し直すときに使います"}
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-white/60 block mb-1">売上CSV（Shift-JIS）<span className="text-neon-pink"> *</span></label>
-                  <input type="file" accept=".csv"
-                    className="input-field text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-neon-violet/20 file:text-neon-violet cursor-pointer"
+                <div className={salarySource === "api" ? "opacity-40" : ""}>
+                  <label className="text-xs text-white/60 block mb-1">
+                    売上CSV（Shift-JIS）
+                    {salarySource === "csv"
+                      ? <span className="text-neon-pink"> *</span>
+                      : <span className="text-white/40">（APIを使うので不要）</span>}
+                  </label>
+                  <input type="file" accept=".csv" disabled={salarySource === "api"}
+                    className="input-field text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-neon-violet/20 file:text-neon-violet cursor-pointer disabled:cursor-not-allowed"
                     onChange={e => {
                       const f = e.target.files?.[0] ?? null;
                       setSalesFile(f);
@@ -1253,7 +1285,7 @@ export default function AdminPage() {
                 計算結果をDBに保存（{salaryYear}/{String(salaryMonth).padStart(2,"0")} {halfLabel(salaryHalf)}）
               </label>
               <div className="flex gap-3 items-center flex-wrap">
-                <button onClick={runSalaryCalc} disabled={calculating || !salesFile || !wageFile} className="btn-primary">
+                <button onClick={runSalaryCalc} disabled={calculating || !wageFile || (salarySource === "csv" && !salesFile)} className="btn-primary">
                   {calculating ? "計算中..." : "計算実行"}
                 </button>
                 <button onClick={loadSalaryFromDB} disabled={calculating || !hasDBData} className="btn-primary bg-white/10 hover:bg-white/20">
@@ -1645,6 +1677,9 @@ export default function AdminPage() {
                           <Row label="　　うちエアレジ" value={fmt(s.airRegiRemoteSales ?? 0)} indent={2} />
                         )}
                         <Row label="　その他" value={fmt(s.localSales)} indent={1} />
+                        {(s.orderDiscount ?? 0) !== 0 && (
+                          <Row label="　全体割引（適用済み）" value={fmt(s.orderDiscount ?? 0)} indent={1} />
+                        )}
                         <Row label="　消費税" value={`△ ${fmt(s.taxAmount)}`} indent={1} />
                         <Divider />
                         <Row label="売上（税抜）" value={fmt(s.totalSalesTaxIncl - s.taxAmount)} />

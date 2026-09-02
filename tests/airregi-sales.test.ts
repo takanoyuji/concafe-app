@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import iconv from "iconv-lite";
 
 import { prisma } from "@/lib/prisma";
-import { buildSalesRows, assertPeriodComplete, eachDate, AirRegiPeriodError } from "@/lib/airregiSales";
+import { buildSalesRows, buildSalesInput, sumOrderDiscount, assertPeriodComplete, eachDate, AirRegiPeriodError } from "@/lib/airregiSales";
 import { parseSalesCsv, calculateSalaryFromRows, type CastInput } from "@/lib/salary";
 
 const SLUG = "tokyo";
@@ -240,5 +240,99 @@ describe("CSV経路とAPI経路が同じ結果になる", () => {
     expect(fromApi.totalSalesTaxIncl).toBe(fromCsv.totalSalesTaxIncl);
     expect(fromApi.casts[0]!.payment).toBe(fromCsv.casts[0]!.payment);
     expect(fromApi.casts[0]!.back).toBeCloseTo(fromCsv.casts[0]!.back, 6);
+  });
+});
+
+describe("全体割引（Phase 4: 割引後を正とする）", () => {
+  it("店舗の売上・粗利・貢献利益から引かれ、仕入は変わらない", async () => {
+    const rows = parseSalesCsv(salesCsv([["キャスドリ", "暗本", "内税", "110000", "88000", "10"]]));
+    const wage = wageCsv([["暗本太郎", "0", "0", "0:00"]]);
+
+    const noDisc = calculateSalaryFromRows(rows, wage, CASTS);
+    const withDisc = calculateSalaryFromRows(rows, wage, CASTS, [], { orderDiscount: -500 });
+
+    expect(withDisc.orderDiscount).toBe(-500);
+    // 売上（税込）は割引額そのまま
+    expect(withDisc.totalSalesTaxIncl).toBe(noDisc.totalSalesTaxIncl - 500);
+    // 粗利は内税の行と同じ扱いで9割ぶん（割引は税込のため）
+    expect(withDisc.grossProfit).toBeCloseTo(noDisc.grossProfit - 450, 6);
+    expect(withDisc.contributionProfit).toBeCloseTo(noDisc.contributionProfit - 450, 6);
+    // 仕入は割引でほとんど動かない（残差は既存の「内税は×0.1」と「消費税は÷11」の差）
+    expect(Math.abs(withDisc.purchases - noDisc.purchases)).toBeLessThan(10);
+  });
+
+  it("キャストのバックは変わらない（伝票単位なので按分できない）", async () => {
+    const rows = parseSalesCsv(salesCsv([["キャスドリ", "暗本", "内税", "110000", "88000", "10"]]));
+    const wage = wageCsv([["暗本太郎", "0", "0", "0:00"]]);
+
+    const noDisc = calculateSalaryFromRows(rows, wage, CASTS);
+    const withDisc = calculateSalaryFromRows(rows, wage, CASTS, [], { orderDiscount: -500 });
+
+    expect(withDisc.casts[0]!.back).toBeCloseTo(noDisc.casts[0]!.back, 6);
+    expect(withDisc.casts[0]!.payment).toBe(noDisc.casts[0]!.payment);
+    expect(withDisc.casts[0]!.grossProfit).toBeCloseTo(noDisc.casts[0]!.grossProfit, 6);
+  });
+
+  it("遠隔の売上は動かさない（どちらの割引か決められないため）", async () => {
+    const rows = parseSalesCsv(salesCsv([
+      ["キャスドリ",   "暗本",      "内税", "50000", "40000", "5"],
+      ["遠隔ドリンク", "遠隔_暗本", "内税", "60000", "48000", "5"],
+    ]));
+    const wage = wageCsv([["暗本太郎", "0", "0", "0:00"]]);
+    const r = calculateSalaryFromRows(rows, wage, CASTS, [], { orderDiscount: -500 });
+
+    expect(r.remoteSales).toBe(60000);
+    expect(r.localSales).toBe(r.totalSalesTaxIncl - r.remoteSales);
+    expect(r.totalSalesTaxIncl).toBe(109500);
+  });
+
+  it("指定しなければ0（CSV経路は従来どおり割引前）", () => {
+    const rows = parseSalesCsv(salesCsv([["キャスドリ", "暗本", "内税", "10000", "8000", "2"]]));
+    const r = calculateSalaryFromRows(rows, wageCsv([["暗本太郎", "0", "0", "0:00"]]), CASTS);
+    expect(r.orderDiscount).toBe(0);
+    expect(r.totalSalesTaxIncl).toBe(10000);
+  });
+
+  it("buildSalesInput は行と全体割引をまとめて返す（給与APIが呼ぶのはこちら）", async () => {
+    await makeTx({
+      id: "T1", businessDate: "20260801",
+      orders: [{ productName: "キャスドリ", categoryName: "暗本", orderCount: 2, discountedPrice: 5000, cost: 1000 }],
+    });
+    await prisma.airRegiTransaction.update({
+      where: { storeNo_airRegiTransactionId: { storeNo: STORE_NO, airRegiTransactionId: "T1" } },
+      data: { discountAmount: -300 },
+    });
+
+    const { rows, orderDiscount } = await buildSalesInput(SLUG, "20260801", "20260801");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.販売総売上).toBe(10000);
+    // 全体割引は明細に按分できないので、行には乗らず総額で返る
+    expect(orderDiscount).toBe(-300);
+  });
+
+  it("sumOrderDiscount は返品を減算し、伝票削除を除外する", async () => {
+    await prisma.airRegiTransaction.create({
+      data: {
+        storeNo: STORE_NO, storeSlug: SLUG, airRegiTransactionId: "D1", transactionType: "0",
+        canceledFlg: "0", businessDate: "20260801", transactionDateTime: "2026-08-01T21:00:00+09:00",
+        totalAmount: 0, discountAmount: -100, fetchedAt: new Date(),
+      },
+    });
+    await prisma.airRegiTransaction.create({
+      data: {
+        storeNo: STORE_NO, storeSlug: SLUG, airRegiTransactionId: "D2", transactionType: "1",
+        canceledFlg: "0", businessDate: "20260801", transactionDateTime: "2026-08-01T22:00:00+09:00",
+        totalAmount: 0, discountAmount: -30, fetchedAt: new Date(),
+      },
+    });
+    await prisma.airRegiTransaction.create({
+      data: {
+        storeNo: STORE_NO, storeSlug: SLUG, airRegiTransactionId: "D3", transactionType: "0",
+        canceledFlg: "1", businessDate: "20260801", transactionDateTime: "2026-08-01T23:00:00+09:00",
+        totalAmount: 0, discountAmount: -900, fetchedAt: new Date(),
+      },
+    });
+    // -100 - (-30) = -70。伝票削除の -900 は入らない
+    expect(await sumOrderDiscount(SLUG, "20260801", "20260801")).toBe(-70);
   });
 });

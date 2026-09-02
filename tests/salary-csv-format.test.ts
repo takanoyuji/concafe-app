@@ -117,6 +117,8 @@ describe("APIは形式不正を400で返す", () => {
   function req(salesBuf: ArrayBuffer, wageBuf: ArrayBuffer) {
     const form = new FormData();
     form.append("store", "東京");
+    // 2026-09 に給与APIの既定が Airレジ API へ移った。ここは売上CSV経路の試験なので明示する
+    form.append("source", "csv");
     form.append("salesCsv", new File([salesBuf], "sales.csv"));
     form.append("wageCsv",  new File([wageBuf],  "wage.csv"));
     form.append("year", "2026"); form.append("month", "8"); form.append("half", "1");

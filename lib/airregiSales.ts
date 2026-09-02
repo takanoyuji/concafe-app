@@ -114,3 +114,30 @@ export async function buildSalesRows(storeSlug: string, from: string, to: string
   // 販売総売上は CSV 側も整数なので、畳み終えてから丸める
   return [...acc.values()].map(r => ({ ...r, 販売総売上: Math.round(r.販売総売上) }));
 }
+
+/**
+ * 給与計算に渡す売上入力ひとまとめ。
+ *
+ * 全体割引は伝票単位で商品明細に按分できないため、行とは別に総額で返す。
+ * 呼び出し元が calculateSalaryFromRows() の opts.orderDiscount に渡す。
+ */
+export async function buildSalesInput(
+  storeSlug: string,
+  from: string,
+  to: string
+): Promise<{ rows: SalesRow[]; orderDiscount: number }> {
+  const [rows, orderDiscount] = await Promise.all([
+    buildSalesRows(storeSlug, from, to),
+    sumOrderDiscount(storeSlug, from, to),
+  ]);
+  return { rows, orderDiscount };
+}
+
+/** 期間内の全体割引の合計（割引はマイナス値）。返品は減算、伝票削除は除外する */
+export async function sumOrderDiscount(storeSlug: string, from: string, to: string): Promise<number> {
+  const txs = await prisma.airRegiTransaction.findMany({
+    where: { storeSlug, businessDate: { gte: from, lte: to } },
+    select: { transactionType: true, canceledFlg: true, discountAmount: true },
+  });
+  return txs.reduce((a, t) => a + transactionSign(t) * t.discountAmount, 0);
+}

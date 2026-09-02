@@ -28,6 +28,8 @@ function wageCsv(rows: string[][]): File {
 function salaryReq(opts: { sales: File; wage: File; year?: number; month?: number; half?: number; save?: boolean }) {
   const form = new FormData();
   form.append("store", STORE);
+  // 2026-09 に給与APIの既定が Airレジ API へ移った。ここは売上CSV経路の試験なので明示する
+  form.append("source", "csv");
   form.append("salesCsv", opts.sales);
   form.append("wageCsv", opts.wage);
   if (opts.year)  form.append("year",  String(opts.year));

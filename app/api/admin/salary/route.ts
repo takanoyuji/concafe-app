@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateSalary, calculateSalaryFromRows, halfPeriodRange, CsvFormatError, type CastInput } from "@/lib/salary";
-import { buildSalesRows, assertPeriodComplete, AirRegiPeriodError } from "@/lib/airregiSales";
+import { buildSalesInput, assertPeriodComplete, AirRegiPeriodError } from "@/lib/airregiSales";
 import { fetchRemodriSalesByCast, attributeByPrimaryStore, isRemodriConfigured, RemodriError, type RemodriCastSales } from "@/lib/remodri";
 import { getRanksForPeriod } from "@/lib/rank";
 
@@ -23,9 +23,11 @@ export async function POST(req: Request) {
   const store    = formData.get("store")    as string | null;
   const salesFile = formData.get("salesCsv") as File | null;
   const wageFile  = formData.get("wageCsv")  as File | null;
-  // 売上の出どころ。"api" なら取り込み済みの取引明細から作る（売上CSVは不要）。
-  // 既定は従来どおり "csv"。並行稼働のあいだ、既定は変えない
-  const source = (formData.get("source") as string | null) === "api" ? "api" : "csv";
+  // 売上の出どころ。既定は "api"（取り込み済みの取引明細から作る）。
+  // "csv" はフォールバック。Airレジの取り込みが止まっているときや、
+  // 62日より前の期間を計算し直すときに使う。
+  // ⚠️ "api" のときは salesCsv が来ていても見ない。CSVを使いたいなら source を明示すること
+  const source = (formData.get("source") as string | null) === "csv" ? "csv" : "api";
   // 期間パラメータ（任意）
   const yearStr  = formData.get("year")  as string | null;
   const monthStr = formData.get("month") as string | null;
@@ -139,8 +141,8 @@ export async function POST(req: Request) {
       const toYmd   = to.replace(/-/g, "");
       // 1日でも取り込み漏れがあると、その日の売上が丸ごと抜けた給与が出る。先に止める
       await assertPeriodComplete(prefix, fromYmd, toYmd);
-      const salesRows = await buildSalesRows(prefix, fromYmd, toYmd);
-      summary = calculateSalaryFromRows(salesRows, wageBuf, casts, remodriRows);
+      const { rows, orderDiscount } = await buildSalesInput(prefix, fromYmd, toYmd);
+      summary = calculateSalaryFromRows(rows, wageBuf, casts, remodriRows, { orderDiscount });
     } else {
       summary = calculateSalary(await salesFile!.arrayBuffer(), wageBuf, casts, remodriRows);
     }
@@ -189,12 +191,13 @@ export async function POST(req: Request) {
             laborCost:          summary.laborCost,
             contributionProfit: summary.contributionProfit,
             workHours:          summary.workHours,
+            orderDiscount:      summary.orderDiscount,
           },
         },
       },
     });
-    return NextResponse.json({ summary, periodId: period.id, remodriOrphans });
+    return NextResponse.json({ summary, periodId: period.id, remodriOrphans, source });
   }
 
-  return NextResponse.json({ summary, remodriOrphans });
+  return NextResponse.json({ summary, remodriOrphans, source });
 }

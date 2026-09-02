@@ -172,6 +172,11 @@ model SalarySummaryRecord {
   contributionProfit Float  @default(0)
   workHours          String @default("")
 
+  /// 伝票単位の全体割引の合計（割引はマイナス値）。
+  /// Airレジ API から計算したときだけ入る。CSV経路では0（CSVに載っていないため）。
+  /// 上の売上・粗利・貢献利益には反映済み。キャストのバックには含まれない（按分できないため）
+  orderDiscount      Float  @default(0)
+
   period SalaryPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
 }
 

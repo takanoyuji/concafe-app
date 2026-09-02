@@ -47,6 +47,19 @@ export interface SalarySummary {
   remodriGrossProfit: number;
   /** remodri に売上があるのにキャストマスタと紐づかなかった分。バックが付いていない */
   unmatchedRemodriCasts: { castCode: string; name: string; amount: number }[];
+
+  /**
+   * 伝票単位の全体割引の合計（割引はマイナス値）。
+   *
+   * Airレジ API から計算したときだけ入る。エアレジの商品別売上CSVには載らないため、
+   * CSV経路では常に0（＝従来どおり割引前の数字になる）。
+   *
+   * ⚠️ 全体割引は伝票単位なので、どのキャストの売上かを決められない。
+   * したがって店舗の業績（売上・粗利・貢献利益）からは引くが、
+   * **キャストのバックからは引かない**。
+   * この結果、キャスト別粗利の合計と店舗の粗利は、この金額のぶんだけ一致しない。
+   */
+  orderDiscount: number;
 }
 
 /** 給与期間（半月）を remodri に渡す YYYY-MM-DD の範囲に変換する。half=0 は月全体 */
@@ -244,7 +257,11 @@ export function calculateSalaryFromRows(
   wageBuf: ArrayBuffer,
   casts: CastInput[],
   /** remodri のキャスト別売上。移行前の期間は空配列（＝従来どおりの計算になる） */
-  remodriRows: RemodriCastSales[] = []
+  remodriRows: RemodriCastSales[] = [],
+  opts: {
+    /** 伝票単位の全体割引の合計（マイナス値）。Airレジ API 経路のときだけ渡す */
+    orderDiscount?: number;
+  } = {}
 ): SalarySummary {
   const wageRaw = parseCSV(decodeCsv(wageBuf));
   assertColumns(wageRaw, WAGE_REQUIRED, "人件費CSV");
@@ -343,13 +360,19 @@ export function calculateSalaryFromRows(
   const remodriSales      = remodriRows.reduce((a, r) => a + r.amount, 0);
   const remodriGrossProfit = remodriRows.reduce((a, r) => a + (r.profit - r.amount * 0.1), 0);
 
-  const totalSalesTaxIncl = airRegiSales + remodriSales;
+  // 全体割引は伝票単位で商品明細に按分できない。店舗の業績からだけ引く（マイナス値）
+  const orderDiscount     = opts.orderDiscount ?? 0;
+
+  const totalSalesTaxIncl = airRegiSales + remodriSales + orderDiscount;
+  // 遠隔/店内のどちらの割引かは伝票からは決められないので、遠隔側は動かさない
   const remoteSales       = airRegiRemoteSales + remodriSales;
   const localSales        = totalSalesTaxIncl - remoteSales;
   // 消費税 = 売上（税込）÷ 11
   const taxAmount         = Math.round(totalSalesTaxIncl / 11);
-  // 売上総利益 = 粗利総額から内税分の消費税を控除済み
-  const grossProfitSum    = sales.reduce((a, s) => a + s.粗利総額, 0) + remodriGrossProfit;
+  // 売上総利益 = 粗利総額から内税分の消費税を控除済み。
+  // 全体割引は税込（仕様書「全体割引適用金額(内税込み)」）なので、内税の行と同じ扱いにする。
+  // 内税の行が「粗利 -= 売上 × 0.1」なのに合わせ、粗利の減は割引額の9割にする
+  const grossProfitSum    = sales.reduce((a, s) => a + s.粗利総額, 0) + remodriGrossProfit + orderDiscount * 0.9;
   // 仕入 = 売上（税抜）− 売上総利益
   const purchases         = totalSalesTaxIncl - taxAmount - grossProfitSum;
   const castPay           = results.reduce((a, r) => a + r.payment, 0);
@@ -392,6 +415,7 @@ export function calculateSalaryFromRows(
     remodriSales,
     remodriGrossProfit,
     unmatchedRemodriCasts,
+    orderDiscount,
   };
 }
 
