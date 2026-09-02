@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateSalary, halfPeriodRange, CsvFormatError, type CastInput } from "@/lib/salary";
+import { calculateSalary, calculateSalaryFromRows, halfPeriodRange, CsvFormatError, type CastInput } from "@/lib/salary";
+import { buildSalesRows, assertPeriodComplete, AirRegiPeriodError } from "@/lib/airregiSales";
 import { fetchRemodriSalesByCast, attributeByPrimaryStore, isRemodriConfigured, RemodriError, type RemodriCastSales } from "@/lib/remodri";
 import { getRanksForPeriod } from "@/lib/rank";
 
@@ -22,6 +23,9 @@ export async function POST(req: Request) {
   const store    = formData.get("store")    as string | null;
   const salesFile = formData.get("salesCsv") as File | null;
   const wageFile  = formData.get("wageCsv")  as File | null;
+  // 売上の出どころ。"api" なら取り込み済みの取引明細から作る（売上CSVは不要）。
+  // 既定は従来どおり "csv"。並行稼働のあいだ、既定は変えない
+  const source = (formData.get("source") as string | null) === "api" ? "api" : "csv";
   // 期間パラメータ（任意）
   const yearStr  = formData.get("year")  as string | null;
   const monthStr = formData.get("month") as string | null;
@@ -29,8 +33,11 @@ export async function POST(req: Request) {
   // 期間は remodri の取得に必ず使う。DBに保存するかどうかは save で明示的に受け取る
   const save     = formData.get("save") === "1";
 
-  if (!store || !salesFile || !wageFile) {
-    return NextResponse.json({ error: "store, salesCsv, wageCsv は必須です" }, { status: 400 });
+  if (!store || !wageFile) {
+    return NextResponse.json({ error: "store と wageCsv は必須です" }, { status: 400 });
+  }
+  if (source === "csv" && !salesFile) {
+    return NextResponse.json({ error: "salesCsv は必須です" }, { status: 400 });
   }
 
   const prefix = storePrefix(store);
@@ -115,15 +122,30 @@ export async function POST(req: Request) {
     })
     .filter(c => c.castName || c.airShiftName);
 
-  const salesBuf = await salesFile.arrayBuffer();
-  const wageBuf  = await wageFile.arrayBuffer();
+  const wageBuf = await wageFile.arrayBuffer();
 
-  // CSVの形式が想定と違うときは計算せずに止める（0のまま保存させない）
+  // 形式や取り込みが想定と違うときは計算せずに止める（0のまま保存させない）
   let summary;
   try {
-    summary = calculateSalary(salesBuf, wageBuf, casts, remodriRows);
+    if (source === "api") {
+      if (!year || !month) {
+        return NextResponse.json(
+          { error: "Airレジ APIから計算するには、年・月の指定が必要です" },
+          { status: 400 }
+        );
+      }
+      const { from, to } = halfPeriodRange(year, month, half ?? 0);
+      const fromYmd = from.replace(/-/g, "");
+      const toYmd   = to.replace(/-/g, "");
+      // 1日でも取り込み漏れがあると、その日の売上が丸ごと抜けた給与が出る。先に止める
+      await assertPeriodComplete(prefix, fromYmd, toYmd);
+      const salesRows = await buildSalesRows(prefix, fromYmd, toYmd);
+      summary = calculateSalaryFromRows(salesRows, wageBuf, casts, remodriRows);
+    } else {
+      summary = calculateSalary(await salesFile!.arrayBuffer(), wageBuf, casts, remodriRows);
+    }
   } catch (e) {
-    if (e instanceof CsvFormatError) {
+    if (e instanceof CsvFormatError || e instanceof AirRegiPeriodError) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }
     throw e;

@@ -165,8 +165,15 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-// 売上CSV行
-interface SalesRow {
+/**
+ * 給与計算の売上入力1行。
+ *
+ * もとはエアレジの商品別売上CSVの1行（商品×バリエーション単位）。
+ * Airレジ API から作る場合も同じ粒度に畳んでからここに入れる（lib/airregiSales.ts）。
+ * 粒度をそろえるのは、業績サマリの外税→税込換算が Math.round() を行ごとに掛けるため。
+ * カテゴリー単位まで畳んでしまうと、丸めの位置が変わって数円ずれることがある。
+ */
+export interface SalesRow {
   商品名: string;
   カテゴリー: string;
   isRemote: boolean;
@@ -184,24 +191,14 @@ interface WageRow {
   労働時間: string;
 }
 
-export function calculateSalary(
-  salesBuf: ArrayBuffer,
-  wageBuf: ArrayBuffer,
-  casts: CastInput[],
-  /** remodri のキャスト別売上。移行前の期間は空配列（＝従来どおりの計算になる） */
-  remodriRows: RemodriCastSales[] = []
-): SalarySummary {
-  // --- CSV パース ---
+/** エアレジの商品別売上CSVを SalesRow[] にする */
+export function parseSalesCsv(salesBuf: ArrayBuffer): SalesRow[] {
   // 文字コードはファイルごとに判定する（決め打ちにしない）
   const salesRaw = parseCSV(decodeCsv(salesBuf));
-  const wageRaw  = parseCSV(decodeCsv(wageBuf));
-
   // 列が揃わないまま進むと全項目が0のまま計算が「成功」してしまうので、ここで止める
   assertColumns(salesRaw, SALES_REQUIRED, "売上CSV");
-  assertColumns(wageRaw,  WAGE_REQUIRED,  "人件費CSV");
 
-  // --- 売上CSV 数値変換 + インボイス処理 ---
-  const sales: SalesRow[] = salesRaw.map(r => {
+  return salesRaw.map(r => {
     const souuri = toNum(r["販売総売上"]);
     let gross = toNum(r["粗利総額"]);
     const rawCat = r["カテゴリー"] ?? "";
@@ -220,6 +217,37 @@ export function calculateSalary(
       販売商品数: toNum(r["販売商品数"]),
     };
   });
+}
+
+/**
+ * エアレジの売上CSVから計算する（従来の経路）。
+ * 中身は parseSalesCsv() + calculateSalaryFromRows() で、挙動は変えていない。
+ */
+export function calculateSalary(
+  salesBuf: ArrayBuffer,
+  wageBuf: ArrayBuffer,
+  casts: CastInput[],
+  /** remodri のキャスト別売上。移行前の期間は空配列（＝従来どおりの計算になる） */
+  remodriRows: RemodriCastSales[] = []
+): SalarySummary {
+  return calculateSalaryFromRows(parseSalesCsv(salesBuf), wageBuf, casts, remodriRows);
+}
+
+/**
+ * 売上の行と勤怠CSVから計算する本体。
+ *
+ * 売上の出どころ（エアレジCSV / Airレジ API）を問わないよう、行の配列で受ける。
+ * 計算そのものは従来と同じ。
+ */
+export function calculateSalaryFromRows(
+  sales: SalesRow[],
+  wageBuf: ArrayBuffer,
+  casts: CastInput[],
+  /** remodri のキャスト別売上。移行前の期間は空配列（＝従来どおりの計算になる） */
+  remodriRows: RemodriCastSales[] = []
+): SalarySummary {
+  const wageRaw = parseCSV(decodeCsv(wageBuf));
+  assertColumns(wageRaw, WAGE_REQUIRED, "人件費CSV");
 
   // --- 勤怠CSV 数値変換 ---
   const wages: WageRow[] = wageRaw.map(r => ({
