@@ -34,9 +34,14 @@ ssh prod-server-deploy 'cd /opt/apps/concafe-app && docker compose up -d'
 `ubuntu` の crontab が以下を直接叩いている。ディレクトリごと消すとバックアップが静かに止まる。
 
 ```
-0 19 * * * /opt/apps/concafe-app/scripts/backup-db.sh   # 日次DBバックアップ
+0 19 * * * /opt/apps/concafe-app/scripts/backup-db.sh    # 日次DBバックアップ
 0 5 1 * * /opt/apps/concafe-app/scripts/monthly-reset.sh # 月次ポイントリセット
+0 8 * * * /opt/apps/concafe-app/scripts/airregi-fetch.sh # Airレジ取引情報の日次取得（2026-09-02〜）
 ```
+
+`airregi-fetch.sh` が止まると**62日を過ぎた営業日は明細レベルで取り返せない**。
+ログは `/opt/apps/concafe-app/logs/airregi.log`。失敗した日があると exit 1 で終わり、日付を一覧で出す。
+詳細は `docs/airregi-api.md`。
 
 本番のファイルを整理するときは、**消す前に `crontab -l` で参照を確認する**
 （2026-07-25、ソース整理でこの2つを消してしまい復元した）。

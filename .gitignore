@@ -47,3 +47,7 @@ next-env.d.ts
 *.db-shm
 *.db-wal
 concafe-app.tar
+
+# Airレジ API のキー・トークン（本番サーバー上の手動管理ファイル）
+.airregi.env
+airregi-raw/
