@@ -70,15 +70,16 @@ cd /opt/apps/concafe-app
 
 取得できなかった日があると **exit 1** で終わり、日付を一覧で出す。cron に載せたらこの終了コードを見ること。
 
-## ⚠️ 生JSONはバックアップ対象外
+## 生JSONのバックアップ
 
-`backup-db.sh` はDBしか取っていない。**62日を過ぎると `airregi-raw/` が唯一の原本になる。**
-DBへの取り込み（下記 Phase 1）が済むまでの間、別の場所へ退避しておく。
+Phase 1 をデプロイしたので、パース済みのデータは `AirRegiTransaction` 等としてDBに入り、
+`backup-db.sh` の対象になった。**生JSONは原本から二次アーカイブに降格**していて、
+用途は「後からパースの誤りに気づいたときのやり直し」に限られる。
 
-```bash
-cd /home/takan/projects/concafe-app
-rsync -av prod-server-deploy:/opt/apps/concafe-app/airregi-raw/ ~/airregi-raw-backup/
-```
+- サーバー内: `backup-db.sh` が毎日 tar して30日分保持（2026-09-02 追加）
+- サーバー外: 手元へ rsync。手順は `docs/OPERATIONS.md` の「サーバー外への退避」
+
+**それでも消すと二度と取り直せない。** APIが62日より前を遡れないため。
 
 ## 日次運用（2026-09-02 稼働開始）
 

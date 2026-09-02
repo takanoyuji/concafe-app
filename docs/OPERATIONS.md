@@ -50,11 +50,33 @@ docker compose ps
 
 ## バックアップ
 
-### 自動バックアップ
-- **スケジュール**: 毎日 AM 4:00 JST（cron: `0 19 * * *` UTC）
-- **保存先**: `/opt/apps/concafe-app/backups/concafe_YYYYMMDD_HHMMSS.db`
-- **保持期間**: 7日分
+### 自動バックアップ（サーバー内）
+- **スケジュール**: 毎日 19:00 JST（cron: `0 19 * * *`。サーバーのTZは Asia/Tokyo）
+- **保存先**: `/opt/apps/concafe-app/backups/`
+  - `concafe_YYYYMMDD_HHMMSS.db` — DB本体
+  - `airregi-raw_YYYYMMDD_HHMMSS.tar.gz` — Airレジの生JSON（2026-09-02 追加）
+- **保持期間**: 30日分（2026-09-02 に7日から延長。DB 3.7MB + 生JSON 0.6MB なので容量は誤差）
 - **ログ**: `/opt/apps/concafe-app/backups/backup.log`
+
+### ⚠️ サーバー外への退避（手動）
+
+**上のバックアップは同じディスク上のコピー。誤削除・誤上書きからは守れるが、サーバーが飛べば一緒に消える。**
+concafe のDBにはキャスト・ポイント履歴・給与履歴が入っており、外部にコピーが無いのは危ない。
+
+手元（WSL）へ落とす。**`--delete` は付けない**。サーバー側で消えても手元に残すため。
+
+```bash
+mkdir -p ~/backup/concafe/airregi-raw ~/backup/concafe/db
+rsync -a prod-server-deploy:/opt/apps/concafe-app/airregi-raw/ ~/backup/concafe/airregi-raw/
+rsync -a prod-server-deploy:/opt/apps/concafe-app/backups/   ~/backup/concafe/db/
+```
+
+WSLは常時起動ではないので cron で自動化しても抜ける。**週1くらいで手で叩く**か、
+Windowsのタスクスケジューラから WSL を起こす形にする。
+
+**Airレジの生JSONは、消すと二度と取り直せない。** APIが62日より前を遡れないため。
+ただしパース済みのデータは `AirRegiTransaction` 等としてDBに入っているので、
+生JSONの用途は「後からパースの誤りに気づいたときのやり直し」に限られる。
 
 ### 手動バックアップ
 ```bash
