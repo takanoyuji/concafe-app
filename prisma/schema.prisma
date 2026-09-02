@@ -7,8 +7,8 @@ datasource db {
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  email              String   @unique
+  id                 String    @id @default(cuid())
+  email              String    @unique
   passwordHash       String
   role               String    @default("CUSTOMER")
   emailVerified      Boolean   @default(false)
@@ -24,8 +24,8 @@ model User {
 
   verificationTokens  EmailVerificationToken[]
   passwordResetTokens PasswordResetToken[]
-  ledgerFrom          PointLedger[] @relation("LedgerFromUser")
-  ledgerTo            PointLedger[] @relation("LedgerToUser")
+  ledgerFrom          PointLedger[]            @relation("LedgerFromUser")
+  ledgerTo            PointLedger[]            @relation("LedgerToUser")
 }
 
 model Store {
@@ -35,6 +35,12 @@ model Store {
   address   String
   mapQuery  String
   createdAt DateTime @default(now())
+
+  /// Airレジの店舗番号（13桁。例 AKR6612359648）。取り込み時に、生JSONの storeNo が
+  /// これと一致するかを必ず照合する。一致しなければ取り込まない。
+  /// 別店舗のデータを取り込んでしまう事故を、データ層で止めるためのもの。
+  /// 空文字なら未設定＝その店舗はAPI連携していない、と扱う。
+  airRegiStoreNo String @default("")
 
   castStores CastStore[]
 }
@@ -120,18 +126,18 @@ model CastMonthlyRank {
 
 // 半月ごとの給与計算結果
 model SalaryPeriod {
-  id          String   @id @default(cuid())
-  storeName   String
-  year        Int
-  month       Int      // 1-12
-  half        Int      // 1=前半(1-15日), 2=後半(16日-末日)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([storeName, year, month, half])
+  id        String   @id @default(cuid())
+  storeName String
+  year      Int
+  month     Int // 1-12
+  half      Int // 1=前半(1-15日), 2=後半(16日-末日)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   castRecords   SalaryCastRecord[]
   summaryRecord SalarySummaryRecord?
+
+  @@unique([storeName, year, month, half])
 }
 
 model SalaryCastRecord {
@@ -228,4 +234,123 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// Airレジ API から取り込んだ取引明細
+//
+// 原本は生JSON（サーバーの /opt/apps/concafe-app/airregi-raw/ と手元のバックアップ）。
+// ここに入るのは集計に使う項目だけの写しで、生JSONはDBに持たない。
+// 62日ぶんで展開8.2MBあり、DBに入れると日次バックアップが重くなるため。
+//
+// 取り込みは営業日単位で「まるごと削除 → 入れ直し」する。
+// 会計金額修正・伝票削除が後日発生するので、同じ営業日を何度取り込んでも
+// 最後の結果に収束する必要がある（冪等）。
+// ============================================================
+
+/// 取引ヘッダ（会計 or 返品が1件）
+model AirRegiTransaction {
+  id String @id @default(cuid())
+
+  /// Airレジの店舗番号（13桁）。Store.airRegiStoreNo と照合済みの値
+  storeNo   String
+  /// Store.slug（tokyo / osaka / nagoya）。集計はこちらで引く
+  storeSlug String
+
+  /// Airレジの取引ID（32桁）
+  airRegiTransactionId String
+  /// 0:会計 1:返品。⚠️ 返品も totalAmount がプラス値で返るので、集計時に減算すること
+  transactionType      String
+  /// 1 なら伝票削除済み。集計から外す
+  canceledFlg          String @default("0")
+
+  /// 店舗の業務日付を加味した営業日 YYYYMMDD。期間の切り出しは必ずこれで行う
+  /// （3店舗とも業務日付の変更時間は5時。実時刻 transactionDateTime とはズレる）
+  businessDate        String
+  transactionDateTime String
+  voucherNo           String @default("")
+
+  /// 割引・割増をすべて含んだ税込金額
+  totalAmount    Int
+  taxAmount      Int @default(0)
+  /// 全体割引の合計（割引はマイナス値）。伝票単位なので商品明細には按分できない
+  discountAmount Int @default(0)
+
+  /// 生JSONの取得日時。再取り込みの要否判定に使う
+  fetchedAt  DateTime
+  importedAt DateTime @default(now())
+
+  orders   AirRegiOrder[]
+  payments AirRegiPayment[]
+
+  @@unique([storeNo, airRegiTransactionId])
+  @@index([storeSlug, businessDate])
+}
+
+/// 注文明細。Airレジのバリエーション単位で1行
+model AirRegiOrder {
+  id            String @id @default(cuid())
+  transactionId String
+
+  productId    String @default("")
+  productName  String
+  categoryId   String @default("")
+  /// 星狼ではここにキャスト名が入る（遠隔は "遠隔_" 接頭辞つき）。給与のバックはこれで名寄せする
+  categoryName String @default("")
+
+  variationName1 String @default("")
+  variationName2 String @default("")
+
+  orderCount      Int
+  /// 個別割引の適用後の単価
+  discountedPrice Int
+  /// 個別割引・割増の合計（割引はマイナス値）。明細に紐づくので按分は不要
+  discountTotal   Int    @default(0)
+  /// 0:内税 1:外税
+  taxType         String @default("0")
+  taxRate         String @default("")
+  /// 1個あたりの原価。未設定商品は0が返る（TC・飲み放題・入場料などが該当）
+  cost            Int    @default(0)
+
+  transaction AirRegiTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+}
+
+/// 支払方法別の内訳。給与計算では使わない。
+/// Airペイの実効料率を明細で定点観測するために取っている（後から遡って取得できないため）
+model AirRegiPayment {
+  id            String @id @default(cuid())
+  transactionId String
+
+  paymentMethodName String
+  /// 000:現金 050:外部連携決済(Airペイ等) 101:商品券 102:売掛金
+  paymentType       String
+  amount            Int
+
+  transaction AirRegiTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+}
+
+/// 営業日ごとの取り込み結果。
+/// 「取れていない営業日」を管理画面に出すための台帳。
+/// これが無いと、cronが静かに止まっても誰も気づけない。
+model AirRegiSyncLog {
+  id           String @id @default(cuid())
+  storeSlug    String
+  /// YYYYMMDD
+  businessDate String
+
+  /// ok / error
+  status           String @default("ok")
+  transactionCount Int    @default(0)
+  message          String @default("")
+
+  /// 生JSON側の取得日時。ファイルがこれより新しければ取り込み直す
+  fetchedAt  DateTime
+  importedAt DateTime @default(now())
+
+  @@unique([storeSlug, businessDate])
+  @@index([businessDate])
 }

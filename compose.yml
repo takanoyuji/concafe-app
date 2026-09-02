@@ -13,6 +13,9 @@ services:
       # /data/concafe.db, /data/cast/, /data/menu/ がここに入る
       # ⚠️ ボリューム名を変更するとデータが消えるので注意！
       - app_data:/data
+      # Airレジの生JSON。ホスト側の cron (airregi-fetch.sh) が書き、アプリは読むだけ。
+      # 読み取り専用でマウントする（アプリが原本を壊せないようにするため）
+      - /opt/apps/concafe-app/airregi-raw:/airregi-raw:ro
 
 volumes:
   app_data:

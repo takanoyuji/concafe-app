@@ -230,11 +230,99 @@ APIで見る東京 2026/08前半の正しい売上は **3,358,376円**、粗利�
 **このレコードは直さない**（2026-09-02 高野判断）。移行後は API を正とするため。突合の対象からは外すこと。
 なお「📊 全店舗合算給与」は東京を「揃っている」扱いにするため、**2026/08 を合算すると東京分が0円のまま通る**。
 
+## Phase 1（DB取り込み）— 実装済み・未デプロイ
+
+### 構成
+
+```
+ホスト側 cron 08:00 JST
+  └ scripts/airregi-sync.sh
+      ├ 1. scripts/airregi-fetch.sh --days 45      … APIから生JSONを取得
+      └ 2. POST /api/admin/airregi/import          … 生JSONをDBへ取り込み
+                (Authorization: Bearer CRON_SECRET)
+```
+
+生JSONは `/opt/apps/concafe-app/airregi-raw` を `/airregi-raw` に**読み取り専用**でマウントして渡す
+（`compose.yml`）。アプリが原本を壊せないようにするため。置き場は `AIRREGI_RAW_DIR` で差し替えられる。
+
+### テーブル
+
+| テーブル | 役割 |
+|---|---|
+| `AirRegiTransaction` | 取引ヘッダ（会計/返品1件） |
+| `AirRegiOrder` | 注文明細。バリエーション単位で1行 |
+| `AirRegiPayment` | 支払方法別の内訳。Airペイ実効料率の定点観測用 |
+| `AirRegiSyncLog` | 営業日ごとの取り込み台帳。「取れていない営業日」の検出に使う |
+| `Store.airRegiStoreNo` | 店舗番号。取り込み時に生JSONの `storeNo` と照合する |
+
+**取り込みは営業日単位で「まるごと削除 → 入れ直し」。** 会計金額修正・伝票削除が後日発生するため、
+何度取り込んでも最後の結果に収束する必要がある。1営業日あたり数件〜数十件なので差分更新にする価値はない。
+
+### 取り込まない条件（黙って通さない）
+
+- **生JSONの `storeNo` が `Store.airRegiStoreNo` と違う** … 別店舗のAPIキーで取れたデータの混入を止める。
+  2026-08-16 に名古屋のCSVで東京の給与計算が保存され、東京のキャスト17人が全員0円になった事故があった。
+  同じ失敗をデータ層で止めるための照合
+- ファイルの中の営業日がファイル名と違う
+- ページに `code != "0000"` のエラー応答が混ざっている（0件として取り込ませない）
+- `Store.airRegiStoreNo` が空の店舗は「連携対象外」として飛ばす（エラーにはしない）
+
+### 実データでの検証（2026-09-02）
+
+62日×3店舗＝186ファイルを使い捨てDBへ取り込み、集計して本番の確定実績と突き合わせた。
+
+```
+取り込み: 186件 / スキップ 0 / 失敗 0  (3.7秒)
+取引 1,157件 / 明細 7,925件 / 支払 1,160件
+2回目: 取り込み 0 / スキップ 186 / 失敗 0 → 取引 1,157件（冪等）
+
+期間              店      売上(割引後)  全体割引  売上(割引前)     実績   差 |    粗利     実績  差
+20260716-20260731 tokyo      6426433     -62      6426495  6426495   0 | 4789232 4789232  0
+20260716-20260731 osaka      4246342    -215      4246557  4246557   0 | 3174876 3174876  0
+20260716-20260731 nagoya      468235       0       468235   468235   0 |  368908  368908  0
+20260801-20260815 osaka      2683553     -20      2683573  2683573   0 | 2070374 2070374  0
+20260801-20260815 nagoya      524820       0       524820   524820   0 |  403253  403253  0
+```
+
+**売上・粗利とも5期間すべて残差0円。** 単体テストは `tests/airregi-import.test.ts`（15件）。
+
+### デプロイ手順（未実施）
+
+⚠️ **マイグレーションはコンテナ起動時に自動で走る**（Dockerfile の `CMD` が
+`npx prisma migrate deploy && npx tsx prisma/seed.ts && npm start`）。手で流す必要はない。
+
+```bash
+# 1. バックアップ（必須）
+ssh prod-server-deploy '/opt/apps/concafe-app/scripts/backup-db.sh'
+
+# 2. 開発機でビルドしてイメージを転送（本番ではビルドしない）
+cd /home/takan/projects/concafe-app
+docker build --build-arg NEXT_PUBLIC_GA_ID=G-B6LN2JP5N1 -t concafe-app-app:<tag> .
+docker save concafe-app-app:<tag> | gzip -1 | ssh prod-server-deploy 'gunzip | docker load'
+
+# 3. スクリプトと compose.yml を転送
+scp scripts/airregi-sync.sh prod-server-deploy:/opt/apps/concafe-app/scripts/
+ssh prod-server-deploy 'chmod +x /opt/apps/concafe-app/scripts/airregi-sync.sh'
+scp compose.yml prod-server-deploy:/opt/apps/concafe-app/compose.yml
+
+# 4. compose.yml の image: タグを書き換えてコンテナ作り直し
+ssh prod-server-deploy 'cd /opt/apps/concafe-app && docker compose up -d'
+
+# 5. cron を fetch 単体から sync（取得＋取り込み）へ切り替える
+#    ⚠️ 4 より前にやらない。取り込みAPIがまだ存在しないコンテナに対して叩くことになる
+```
+
+**デプロイ後に確認すること**
+
+- `Store.airRegiStoreNo` に3店舗ぶん入っているか（マイグレーションと seed の両方で入る）
+- 管理画面の「Airレジ 取り込み状況」に欠けが出ていないか
+- `docker exec` で `/airregi-raw` が見えるか（マウント漏れは「未取得」が全日並ぶ形で出る）
+
 ## 次の工程
 
 | Phase | 内容 |
 |---|---|
-| 1 | `AirRegiTransaction` / `AirRegiOrder` テーブルを追加し、生JSONから取り込む。`Store` に `airRegiStoreNo` 列を追加。同期ログを持ち、管理画面に「取れていない営業日」を出す。認証は既存の `CRON_SECRET` に寄せる |
+| ~~1~~ | ~~DB取り込み~~ → **実装済み・未デプロイ**（上記） |
 | 2 | 明細 → 現行 `SalesRow`（商品名/カテゴリー/税区分/販売総売上/粗利総額）に畳む集計関数。`calculateSalary` 本体は触らない |
 | 3 | 並行稼働。管理画面に「CSV / API」の切替を置き、同じ期間を両方で計算して差分を出す |
 | 4 | 売上CSVを既定オフ（残置）。**人件費CSV（エアシフト）は みせ勤 移行まで残る** |

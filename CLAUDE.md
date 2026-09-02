@@ -62,11 +62,13 @@ ssh prod-server-deploy 'cd /opt/apps/concafe-app && docker compose up -d'
    → `concafe-app_app_data` が存在することを確認。`db-data` や `upload-data` が使われていたら異常。
 
 3. **compose ファイルのボリューム設定を確認する**
-   `compose.yml` の volumes は必ず以下の1行のみ：
+   `compose.yml` の volumes に **`- app_data:/data` が入っていること**を必ず確認する。
    ```yaml
-   - app_data:/data
+   - app_data:/data                                        # DB・画像。名前を変えるとデータが消える
+   - /opt/apps/concafe-app/airregi-raw:/airregi-raw:ro     # Airレジ生JSON（読み取り専用）
    ```
-   ボリューム名を変えるとデータが消えるため絶対に変更しない。
+   **`app_data` のボリューム名は絶対に変更しない。** 変えるとDBと画像が消える。
+   読み取り専用のバインドマウントを足すのは可（2026-09-02 に airregi-raw を追加）。
 
 ## ⚠️ `SalaryCastRecord.hpName` は `Cast.name` と別物 — 一括置換で巻き込まない
 

@@ -85,6 +85,9 @@ export default function AdminPage() {
   const [salarySummary, setSalarySummary] = useState<SalarySummary | null>(null);
   // 所属店舗が分からず、どの店舗にも計上されなかった遠隔売上
   const [remodriOrphans, setRemodriOrphans] = useState<{ castCode: string; name: string; amount: number }[]>([]);
+  // Airレジ APIの取り込みが欠けている営業日。cronが静かに止まったことに気づくため
+  const [airRegiMissing, setAirRegiMissing] = useState<{ storeSlug: string; businessDate: string; reason: string }[]>([]);
+  const [airRegiImporting, setAirRegiImporting] = useState(false);
   const now = new Date();
   const [salaryYear,  setSalaryYear]  = useState(now.getFullYear());
   const [salaryMonth, setSalaryMonth] = useState(now.getMonth() + 1);
@@ -163,6 +166,9 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Airレジの取り込み状況は画面を開いたときに1回だけ見る
+  useEffect(() => { fetchAirRegiMissing(); }, []);
 
   // 月別ランク取得
   const fetchMonthlyRanks = useCallback(async (y: number, m: number) => {
@@ -348,6 +354,33 @@ export default function AdminPage() {
     if (!confirm("削除しますか？")) return;
     await fetch(`/api/admin/cast-ranks/${id}`, { method: "DELETE" });
     fetchAll();
+  };
+
+  // Airレジ: 取り込めていない営業日を取得する
+  const fetchAirRegiMissing = async () => {
+    try {
+      const res = await fetch("/api/admin/airregi/import");
+      if (!res.ok) return;
+      const d = await res.json();
+      setAirRegiMissing(d.missing ?? []);
+    } catch { /* 取れなくても画面は壊さない */ }
+  };
+
+  // Airレジ: 生JSONをDBへ取り込み直す（通常はcronがやる。手で叩くのは復旧用）
+  const runAirRegiImport = async () => {
+    setAirRegiImporting(true);
+    try {
+      const res = await fetch("/api/admin/airregi/import", { method: "POST" });
+      const d = await res.json();
+      if (res.ok || res.status === 207) {
+        setAirRegiMissing(d.missing ?? []);
+        flash(`取り込み ${d.imported}件 / スキップ ${d.skipped}件 / 失敗 ${d.failed}件`, d.failed > 0);
+      } else {
+        flash(d.error ?? "取り込みに失敗しました", true);
+      }
+    } finally {
+      setAirRegiImporting(false);
+    }
   };
 
   // Salary calculation
@@ -1127,6 +1160,40 @@ export default function AdminPage() {
                     ))}
                     {castRanks.length === 0 && <p className="text-white/40 text-sm text-center py-4">ランクが登録されていません</p>}
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Airレジ APIの取り込み状況。cronが静かに止まると誰も気づけないので常に出す */}
+            <div className="glass p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <h2 className="font-bold text-star-300">Airレジ 取り込み状況</h2>
+                <button
+                  onClick={runAirRegiImport}
+                  disabled={airRegiImporting}
+                  className="btn-primary bg-white/10 hover:bg-white/20 text-xs px-3 py-1"
+                >
+                  {airRegiImporting ? "取り込み中..." : "取り込み直す"}
+                </button>
+              </div>
+              {airRegiMissing.length === 0 ? (
+                <p className="text-xs text-white/50">直近45日ぶん、3店舗とも取り込めています。</p>
+              ) : (
+                <div className="rounded border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200 space-y-1">
+                  <div className="font-bold">取り込めていない営業日が {airRegiMissing.length} 件あります</div>
+                  <div>
+                    Airレジ APIは62日より前を遡れません。放置すると、その営業日の明細は二度と取得できなくなります。
+                  </div>
+                  <ul className="pl-4 list-disc space-y-0.5 max-h-40 overflow-y-auto">
+                    {airRegiMissing.slice(0, 30).map(m => (
+                      <li key={`${m.storeSlug}-${m.businessDate}`}>
+                        {m.storeSlug} / {m.businessDate}：{m.reason}
+                      </li>
+                    ))}
+                  </ul>
+                  {airRegiMissing.length > 30 && (
+                    <div className="text-white/50">ほか {airRegiMissing.length - 30} 件</div>
+                  )}
                 </div>
               )}
             </div>

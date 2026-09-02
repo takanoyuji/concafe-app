@@ -30,18 +30,21 @@ async function main() {
     {
       slug: "tokyo",
       name: "星狼 池袋店",
+      airRegiStoreNo: "AKR6612359648",
       address: "〒171-0014 東京都豊島区池袋３丁目５９−９ ＦＳビル 202",
       mapQuery: "東京都豊島区池袋3丁目59-9 FSビル 202",
     },
     {
       slug: "osaka",
       name: "星狼 日本橋店",
+      airRegiStoreNo: "AKR9807318054",
       address: "〒556-0005 大阪府大阪市浪速区日本橋３丁目１−１８ 菊乃好 5F",
       mapQuery: "大阪府大阪市浪速区日本橋3丁目1-18 菊乃好 5F",
     },
     {
       slug: "nagoya",
       name: "星狼 名古屋栄店",
+      airRegiStoreNo: "AKR9839769627",
       address: "〒460-0003 愛知県名古屋市中区錦３丁目１９−２４ サンステンドビル 4F-A",
       mapQuery: "愛知県名古屋市中区錦3丁目19-24 サンステンドビル",
     },
@@ -50,7 +53,8 @@ async function main() {
   for (const store of stores) {
     await prisma.store.upsert({
       where: { slug: store.slug },
-      update: { name: store.name, address: store.address, mapQuery: store.mapQuery },
+      // airRegiStoreNo は店舗の固定の事実。空だと取り込みが黙って全スキップになるので毎回そろえる
+      update: { name: store.name, address: store.address, mapQuery: store.mapQuery, airRegiStoreNo: store.airRegiStoreNo },
       create: store,
     });
   }
