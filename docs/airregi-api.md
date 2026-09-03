@@ -447,6 +447,29 @@ CSV経路では常に0（CSVに全体割引が載っていないため）。
   CSV経路のまま。使うのが `summary.casts[].payment` だけで、全体割引の影響を受けないため
 - `scripts/import-salary-batch.ts`（過去分の一括取り込み）もCSVのまま
 
+## 他店舗（Exhale / V Liver Lab）
+
+2026-09-03 から Exhale と V Liver Lab も同じスクリプトで取得している。
+**設定ファイルと保存先だけ別**にすることで、取得側のコードは変えていない。
+
+```
+0 9 * * * AIRREGI_CONFIG=/opt/apps/airregi-raw/.airregi.env \
+          /opt/apps/concafe-app/scripts/airregi-fetch.sh --days 45 >> /opt/apps/airregi-raw/logs/airregi.log 2>&1
+```
+
+⚠️ **保存先は `/opt/apps/airregi-raw/` で、concafe-app の `airregi-raw` とは別。**
+同じ場所に置くと、こちらの取り込みが Exhale・VLL を「Store に無い店舗」として
+毎日エラーに数える（`importAirRegiRaw` は Store に無い slug を失敗として記録する）。
+
+| 店舗 | slug | storeNo | 使い道 |
+|---|---|---|---|
+| SHISHA Exhale | exhale | `AKR4134427013` | `~/projects/exhale_salary/` の給与計算 |
+| V Liver Lab | vll | `AKR4733092839` | 未定（62日の窓に食われる前に蓄積） |
+
+**滞在時間は取れない。** `voucherCreationDateTime` は項目としてあるが、5店舗3,405件で
+99.8%が `transactionDateTime` と一致する。詳細とリクルートへの質問は
+`~/projects/secretary/knowledge/airレジAPI-時刻項目と滞在時間.md`。
+
 ## 次の工程
 
 | Phase | 内容 |
