@@ -42,7 +42,8 @@ model Store {
   /// 空文字なら未設定＝その店舗はAPI連携していない、と扱う。
   airRegiStoreNo String @default("")
 
-  castStores CastStore[]
+  castStores   CastStore[]
+  reservations Reservation[]
 }
 
 /// キャストの唯一のマスタ。
@@ -358,4 +359,72 @@ model AirRegiSyncLog {
 
   @@unique([storeSlug, businessDate])
   @@index([businessDate])
+}
+
+/// 席の予約。公式LINEのフォームから届くほか、電話・DMで受けた分を管理画面から手入力する。
+///
+/// **承認制**。申し込みは PENDING で入り、店舗が内容を見て承認して初めて CONFIRMED になる。
+/// 空席の自動判定は行わない（電話予約を含む全予約が台帳に入る運用が定着してから。
+/// 先に自動確定にすると「確定後に満席でした」の事故が起きる）。
+///
+/// レコードは物理削除しない。取りやめは status を変えて残す。
+model Reservation {
+  id      String @id @default(cuid())
+  storeId String
+
+  /// 来店日時は **JSTの文字列**で持つ。サーバーのタイムゾーンがUTCでも
+  /// 「18:00 と申し込まれたものが 18:00 のまま残る」ことを優先した。
+  /// 並び替え・期間の絞り込みは [visitDate, visitTime] の辞書順で正しく効く。
+  visitDate String
+  /// HH:MM（24時制・30分刻み）
+  visitTime String
+
+  partySize    Int
+  customerName String
+  /// 数字のみに正規化して保存する（090-1234-5678 → 09012345678）。
+  /// 連続申し込みの判定が表記ゆれで抜けないようにするため
+  phone String
+  note  String @default("")
+
+  /// PENDING（未対応）/ CONFIRMED（確定）/ DECLINED（お断り）/
+  /// CANCELED（キャンセル）/ VISITED（来店済み）/ NO_SHOW（無断キャンセル）
+  status String @default("PENDING")
+  /// 受付経路。LINE / PHONE / OTHER
+  source String @default("LINE")
+
+  /// いたずら対策の連続申し込み判定にだけ使う。IPそのものは残さない
+  ipHash String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  /// 最後に状態を変えた管理者の User.id
+  lastActorId String @default("")
+
+  store  Store              @relation(fields: [storeId], references: [id])
+  events ReservationEvent[]
+
+  @@index([visitDate, visitTime])
+  @@index([status])
+  @@index([phone, createdAt])
+}
+
+/// 予約の状態変更の履歴。「いつ誰がキャンセルにしたか」を後から追えるようにするためのもの。
+/// 新規申し込みも fromStatus="" の1件として残す
+model ReservationEvent {
+  id            String @id @default(cuid())
+  reservationId String
+
+  fromStatus String @default("")
+  toStatus   String
+
+  /// 操作した管理者。お客様自身の申し込みは空
+  actorId    String @default("")
+  actorEmail String @default("")
+  memo       String @default("")
+
+  createdAt DateTime @default(now())
+
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+
+  @@index([reservationId])
 }

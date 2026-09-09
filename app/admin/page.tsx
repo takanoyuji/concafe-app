@@ -820,6 +820,13 @@ export default function AdminPage() {
               {label}
             </button>
           ))}
+          {/* 予約台帳は誤操作を防ぐため専用ページにしてある（タブではない） */}
+          <Link
+            href="/admin/reservations"
+            className="px-4 py-2 rounded-full text-sm font-medium glass text-white/60 hover:text-white transition-all"
+          >
+            📖 予約台帳
+          </Link>
           <Link href="/me" className="ml-auto text-white/40 hover:text-white/70 text-sm self-center">
             マイページ →
           </Link>

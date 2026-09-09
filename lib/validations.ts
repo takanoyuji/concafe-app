@@ -66,3 +66,32 @@ export const TitleSchema = z.object({
   threshold: z.number().int().min(0, "閾値は0以上で入力してください"),
   order: z.number().int().default(0),
 });
+
+/**
+ * 席予約の申し込み（お客様向けフォーム）。
+ * 会員登録は不要なので、本人を特定できるのは氏名と電話番号だけ。両方必須にする。
+ */
+export const ReservationSchema = z.object({
+  storeId: z.string().min(1, "店舗を選んでください"),
+  visitDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "来店日を選んでください"),
+  visitTime: z.string().regex(/^\d{2}:\d{2}$/, "来店時間を選んでください"),
+  partySize: z.number().int().min(1, "人数を選んでください"),
+  customerName: z.string().min(1, "お名前は必須です").max(50, "お名前は50文字以内で入力してください"),
+  phone: z.string().min(1, "電話番号は必須です"),
+  note: z.string().max(500, "ご要望は500文字以内で入力してください").optional().default(""),
+});
+
+/**
+ * 管理画面からの手入力（電話・DMで受けた予約）。
+ * 受付経路を選べる点と、過去日も入れられる点がお客様向けと違う。
+ */
+export const AdminReservationSchema = ReservationSchema.extend({
+  source: z.enum(["LINE", "PHONE", "OTHER"]).default("PHONE"),
+  status: z.enum(["PENDING", "CONFIRMED"]).default("CONFIRMED"),
+});
+
+/** 台帳での状態変更 */
+export const ReservationStatusSchema = z.object({
+  status: z.enum(["PENDING", "CONFIRMED", "DECLINED", "CANCELED", "VISITED", "NO_SHOW"]),
+  memo: z.string().max(200).optional().default(""),
+});
