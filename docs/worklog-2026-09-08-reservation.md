@@ -139,7 +139,45 @@
   公開サイトのナビは触っていない。出すかどうかは要判断
 - 営業時間・定休日の登録（第2段階）、席数と空席の自動判定（第3段階）
 
-## 6. デプロイ時の注意
+## 6. デプロイ（2026-09-09 完了）
+
+`feature/reservation` の `c18cc90`（14ファイル・+1,805行）をデプロイした。
+イメージは `concafe-app-app:reservation-20260909`。**まだ push していない。**
+
+手順どおり、バックアップ → 開発機でビルド → イメージ転送 → `compose.yml` のタグ書き換え → `up -d`。
+
+- バックアップ: `concafe_20260909_190252.db`（3.9M）と Airレジ生JSON
+- ボリューム `concafe-app_app_data` と `app_data:/data` を事前に確認
+- 旧 compose.yml を `compose.yml.bak-20260909` に退避してからタグを書き換え
+- 起動時に `20260908000000_add_reservation` **1本だけ**が適用された
+  （残り3本は本番に適用済みだった。手元の `dev.db` が遅れていただけ）
+
+### 本番で確認したこと
+
+- `https://xing-lang.com/reserve` が200。時刻の選択肢は 18:00〜22:00 の5つ
+- トップのヘッダーに `/reserve` の導線が入っている
+- 店舗の選択肢が3店とも出る
+- 未ログインで `/admin/reservations` は307、`/api/admin/reservations` は403
+- **GA測定ID `G-B6LN2JP5N1` がHTMLに焼き込まれている**（build-arg の渡し忘れがないこと）
+- `/ranking` は200。既存機能は生きている
+- **書き込みの経路まで確認した。** テスト予約を1件POSTし、DBで
+  予約1件＋履歴1件（`"" → PENDING`／電話番号は正規化済み）を読み返した。
+  GETが200でもPOSTだけ落ちることがあるため、ここまで見る。
+  確認後、そのIDを指定して予約と履歴を削除し、両テーブルが0件に戻ったことを確認済み
+
+### 元に戻すには
+
+```bash
+ssh prod-server-deploy 'cd /opt/apps/concafe-app && cp compose.yml.bak-20260909 compose.yml && docker compose up -d'
+```
+
+⚠️ **イメージを戻してもテーブルは残る。** マイグレーションは巻き戻らない。
+使われていないテーブルが2つ残るだけなので実害はないが、DBごと戻すなら
+`backups/concafe_20260909_190252.db` から復元する（手順は `docs/OPERATIONS.md`）。
+
+---
+
+## 7. デプロイ手順のメモ
 
 マイグレーションはコンテナ起動時に `npx prisma migrate deploy` が走るので、
 デプロイすれば自動で当たる（Dockerfile の CMD）。手で流す必要はない。
