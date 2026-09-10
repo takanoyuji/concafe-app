@@ -24,6 +24,10 @@ interface Reservation {
   customerName: string;
   phone: string;
   note: string;
+  /// お客様の自己申告。照合はしていない
+  purchaseId: string;
+  /// BASEの注文IDらしい形かどうか。照合結果ではない
+  purchaseIdLooksValid: boolean;
   status: ReservationStatus;
   source: ReservationSource;
   createdAt: string;
@@ -57,6 +61,7 @@ const MANUAL_EMPTY = {
   customerName: "",
   phone: "",
   note: "",
+  purchaseId: "",
   source: "PHONE" as ReservationSource,
   status: "CONFIRMED" as "PENDING" | "CONFIRMED",
 };
@@ -265,6 +270,8 @@ export default function ReservationLedgerPage() {
                 <option value="CONFIRMED" className="text-black">確定として入れる</option>
                 <option value="PENDING" className="text-black">未対応として入れる</option>
               </select>
+              <input className="input-field" placeholder="遠隔ドリンクの購入ID（任意）" value={manual.purchaseId}
+                onChange={e => setManual({ ...manual, purchaseId: e.target.value })} />
               <input className="input-field md:col-span-2" placeholder="メモ（電話・DMで聞いた内容）" value={manual.note}
                 onChange={e => setManual({ ...manual, note: e.target.value })} />
               <button type="submit" className="btn-primary py-2" disabled={saving}>
@@ -334,6 +341,12 @@ function Section({
                 {STATUS_LABEL[r.status]}
               </span>
               {r.overdue && <span className="text-star-400 text-xs">⚠️ 承認の目安時間を過ぎています</span>}
+              {/* 承認を優先する判断材料。照合前なので「申告あり」としか言えない */}
+              {r.purchaseId && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-neon-cyan/80 text-black">
+                  遠隔購入の申告あり
+                </span>
+              )}
               <span className="font-semibold">
                 {r.visitDate} {r.visitTime}
               </span>
@@ -346,6 +359,18 @@ function Section({
                 {openId === r.id ? "履歴を閉じる" : "履歴"}
               </button>
             </div>
+
+            {r.purchaseId && (
+              <p className="mt-2 text-sm text-white/70">
+                購入ID（未照合）: <span className="font-mono">{r.purchaseId}</span>
+                {!r.purchaseIdLooksValid && (
+                  <span className="text-star-400 ml-2">⚠️ BASEの注文IDの形（16桁）と違います</span>
+                )}
+                <span className="block text-white/40 text-xs mt-0.5">
+                  お客様の自己申告です。承認を優先する前にBASEの管理画面で突き合わせてください
+                </span>
+              </p>
+            )}
 
             {r.note && <p className="mt-2 text-sm text-white/70 whitespace-pre-wrap">メモ: {r.note}</p>}
 

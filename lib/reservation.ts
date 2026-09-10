@@ -228,3 +228,20 @@ export function isOverdue(status: string, createdAt: Date, now: Date = new Date(
   if (status !== "PENDING") return false;
   return replyableMinutes(createdAt, now) > SETTINGS.approveWithinHours * 60;
 }
+
+/**
+ * 入力された購入IDが BASE の注文IDらしい形かを判定する。
+ *
+ * BASE の注文IDは16進16桁の大文字（例 `1AE7F1F358D8940C`）。
+ * **これは弾くための判定ではない。** 照合はしていないので真偽は分からず、
+ * 「明らかに形が違う」ことを台帳で店舗に伝えるためだけに使う。
+ * false でも予約は受け付けるし、true でも購入した証明にはならない。
+ */
+export function looksLikeBasePurchaseId(value: string): boolean {
+  return /^[0-9A-F]{16}$/.test(value.trim().toUpperCase());
+}
+
+/** 購入IDの保存形。前後の空白を落とし、大文字に寄せる（照合するときの表記ゆれを減らす） */
+export function normalizePurchaseId(value: string): string {
+  return value.trim().toUpperCase();
+}

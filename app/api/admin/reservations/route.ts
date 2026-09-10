@@ -8,6 +8,8 @@ import {
   isStatus,
   normalizePhone,
   isValidPhone,
+  normalizePurchaseId,
+  looksLikeBasePurchaseId,
   jstNow,
   addDays,
 } from "@/lib/reservation";
@@ -50,6 +52,9 @@ export async function GET(req: Request) {
       customerName: r.customerName,
       phone: r.phone,
       note: r.note,
+      purchaseId: r.purchaseId,
+      /// 形が BASE の注文IDらしいか。照合結果ではなく見た目の判定にすぎない
+      purchaseIdLooksValid: looksLikeBasePurchaseId(r.purchaseId),
       status: r.status,
       source: r.source,
       createdAt: r.createdAt.toISOString(),
@@ -95,6 +100,7 @@ export async function POST(req: Request) {
       customerName: input.customerName.trim(),
       phone,
       note: input.note ?? "",
+      purchaseId: normalizePurchaseId(input.purchaseId ?? ""),
       status: input.status,
       source: input.source,
       lastActorId: session.userId,

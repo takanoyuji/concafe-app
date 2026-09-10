@@ -12,6 +12,7 @@ const EMPTY = {
   partySize: 1,
   customerName: "",
   phone: "",
+  purchaseId: "",
 };
 
 export default function ReservePage() {
@@ -160,6 +161,22 @@ export default function ReservePage() {
                   onChange={e => setForm({ ...form, phone: e.target.value })}
                 />
                 <p className="text-white/50 text-xs mt-1">当日のご連絡に使わせていただきます</p>
+              </Field>
+
+              {/* 遠隔で買ってくれた方を承認で優先するために聞く。購入は予約の条件ではないので、
+                  空欄でも申し込めることを欄のすぐ下に書く（必須と誤解されて離脱するのを防ぐ） */}
+              <Field label="遠隔ドリンクの購入ID（任意）">
+                <input
+                  className="input-field"
+                  maxLength={64}
+                  placeholder="1AE7F1F358D8940C"
+                  value={form.purchaseId}
+                  onChange={e => setForm({ ...form, purchaseId: e.target.value })}
+                />
+                <p className="text-white/50 text-xs mt-1">
+                  BASEの注文確認メールに記載の16桁の番号です。<br />
+                  ※購入しなくても予約申請はできます
+                </p>
               </Field>
 
               <p className="text-white/50 text-xs leading-relaxed">

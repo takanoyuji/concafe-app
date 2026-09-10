@@ -386,6 +386,13 @@ model Reservation {
   phone String
   note  String @default("")
 
+  /// 遠隔ドリンクを買ってくれた人が自己申告する BASE の注文ID（16進16桁）。
+  /// **システムは照合しない。** concafe-app は BASE の API を持っていないため、
+  /// 他人の注文IDを書くこともできる。承認の優先に使うが、
+  /// 「購入した事実」として扱う前に店舗が BASE の管理画面で必ず突き合わせる。
+  /// 形式が違っても保存する（表記ゆれや別経路の購入で申し込めなくなるほうが損なため）。
+  purchaseId String @default("")
+
   /// PENDING（未対応）/ CONFIRMED（確定）/ DECLINED（お断り）/
   /// CANCELED（キャンセル）/ VISITED（来店済み）/ NO_SHOW（無断キャンセル）
   status String @default("PENDING")

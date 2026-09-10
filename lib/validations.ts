@@ -78,7 +78,11 @@ export const ReservationSchema = z.object({
   partySize: z.number().int().min(1, "人数を選んでください"),
   customerName: z.string().min(1, "お名前は必須です").max(50, "お名前は50文字以内で入力してください"),
   phone: z.string().min(1, "電話番号は必須です"),
-  // お客様向けフォームは氏名・電話・日時・人数だけを受ける。
+  /// 遠隔ドリンクの購入ID（任意・自己申告）。承認の優先に使う。
+  /// **形式が違っても弾かない。** BASE以外の経路や表記ゆれで申し込めなくなるほうが損なため。
+  /// BASEの注文IDらしいかの判定は looksLikeBasePurchaseId() が行い、台帳の表示にだけ使う
+  purchaseId: z.string().max(64, "購入IDは64文字以内で入力してください").optional().default(""),
+  // 自由記述は受けない。氏名・電話・日時・人数・購入IDだけを受ける。
   // 席の希望・記念日・自由記述は受け付けない（2026-09-10 決定）。
   // zod は未知のキーを落とすので、直接POSTされても note は保存されない
 });

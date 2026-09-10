@@ -13,6 +13,7 @@ import { PATCH as adminPATCH } from "@/app/api/admin/reservations/[id]/route";
 import {
   addDays, jstNow, normalizePhone, checkVisitWindow, isOverdue,
   replyableMinutes, timeOptions, SETTINGS,
+  looksLikeBasePurchaseId, normalizePurchaseId,
 } from "@/lib/reservation";
 
 const TOMORROW = addDays(jstNow().date, 1);
@@ -84,6 +85,27 @@ describe("予約の申し込み（公開API）", () => {
     expect(events[0].toStatus).toBe("PENDING");
   });
 
+  it("購入IDは大文字・空白なしに揃えて保存する", async () => {
+    await reservePOST(reserveReq({ ...VALID, storeId, purchaseId: " 1ae7f1f358d8940c " }));
+    const row = await prisma.reservation.findFirstOrThrow();
+    expect(row.purchaseId).toBe("1AE7F1F358D8940C");
+  });
+
+  it("購入IDが未入力でも申し込める（購入は予約の条件ではない）", async () => {
+    const res = await reservePOST(reserveReq({ ...VALID, storeId }));
+    expect(res.status).toBe(201);
+    const row = await prisma.reservation.findFirstOrThrow();
+    expect(row.purchaseId).toBe("");
+  });
+
+  it("購入IDの形が違っても弾かない。保存して台帳で警告する", async () => {
+    const res = await reservePOST(reserveReq({ ...VALID, storeId, purchaseId: "たぶんこれ123" }));
+    expect(res.status).toBe(201);
+    const row = await prisma.reservation.findFirstOrThrow();
+    expect(row.purchaseId).toBe("たぶんこれ123");
+    expect(looksLikeBasePurchaseId(row.purchaseId)).toBe(false);
+  });
+
   it("公開APIから確定済みの予約は作れない（status/source を受け取らない）", async () => {
     await reservePOST(reserveReq({ ...VALID, storeId, status: "CONFIRMED", source: "PHONE" }));
     const row = await prisma.reservation.findFirstOrThrow();
@@ -132,6 +154,20 @@ describe("予約台帳（管理API）", () => {
 
     session.current = { userId: "someone", role: "CUSTOMER" };
     expect((await adminGET(new Request("http://localhost/api/admin/reservations"))).status).toBe(403);
+  });
+
+  it("台帳は購入IDと「形が正しそうか」を返す。照合結果ではない", async () => {
+    await reservePOST(reserveReq({ ...VALID, storeId, purchaseId: "1AE7F1F358D8940C" }));
+    await reservePOST(reserveReq({ ...VALID, storeId, phone: "090-2222-3333", purchaseId: "あやしい" }));
+    session.current = { userId: adminId, role: "ADMIN" };
+
+    const res = await adminGET(new Request("http://localhost/api/admin/reservations"));
+    const body = await res.json();
+    const ok = body.reservations.find((x: { purchaseId: string }) => x.purchaseId === "1AE7F1F358D8940C");
+    const ng = body.reservations.find((x: { purchaseId: string }) => x.purchaseId === "あやしい");
+    expect(ok.purchaseIdLooksValid).toBe(true);
+    // 形が違っても台帳には出す。店舗が見て判断できるようにするため
+    expect(ng.purchaseIdLooksValid).toBe(false);
   });
 
   it("承認すると確定になり、誰が変えたかが履歴に残る", async () => {
@@ -233,6 +269,19 @@ describe("予約台帳（管理API）", () => {
 });
 
 describe("入力の正規化と受付範囲", () => {
+  it("BASEの注文IDらしいかは16進16桁で判定する。照合ではない", () => {
+    expect(looksLikeBasePurchaseId("1AE7F1F358D8940C")).toBe(true);
+    expect(looksLikeBasePurchaseId(" 1ae7f1f358d8940c ")).toBe(true);
+    expect(looksLikeBasePurchaseId("1AE7F1F358D8940")).toBe(false);   // 15桁
+    expect(looksLikeBasePurchaseId("1AE7F1F358D8940CZ")).toBe(false); // 16進でない
+    expect(looksLikeBasePurchaseId("")).toBe(false);
+  });
+
+  it("購入IDの正規化は前後の空白を落として大文字に寄せる", () => {
+    expect(normalizePurchaseId("  1ae7f1f358d8940c ")).toBe("1AE7F1F358D8940C");
+    expect(normalizePurchaseId("")).toBe("");
+  });
+
   it("全角・ハイフン・+81 を数字だけに揃える", () => {
     expect(normalizePhone("０９０-１２３４-５６７８")).toBe("09012345678");
     expect(normalizePhone("+81 90 1234 5678")).toBe("09012345678");
