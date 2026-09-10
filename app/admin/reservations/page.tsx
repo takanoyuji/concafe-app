@@ -265,7 +265,7 @@ export default function ReservationLedgerPage() {
                 <option value="CONFIRMED" className="text-black">確定として入れる</option>
                 <option value="PENDING" className="text-black">未対応として入れる</option>
               </select>
-              <input className="input-field md:col-span-2" placeholder="ご要望・メモ" value={manual.note}
+              <input className="input-field md:col-span-2" placeholder="メモ（電話・DMで聞いた内容）" value={manual.note}
                 onChange={e => setManual({ ...manual, note: e.target.value })} />
               <button type="submit" className="btn-primary py-2" disabled={saving}>
                 {saving ? "登録中..." : "台帳に登録"}
@@ -347,7 +347,7 @@ function Section({
               </button>
             </div>
 
-            {r.note && <p className="mt-2 text-sm text-white/70 whitespace-pre-wrap">ご要望: {r.note}</p>}
+            {r.note && <p className="mt-2 text-sm text-white/70 whitespace-pre-wrap">メモ: {r.note}</p>}
 
             {ALLOWED_TRANSITIONS[r.status].length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">

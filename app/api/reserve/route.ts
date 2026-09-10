@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       partySize: input.partySize,
       customerName: input.customerName.trim(),
       phone,
-      note: input.note ?? "",
+      // note はお客様向けフォームでは受け付けない（列は管理画面の手入力メモが使う）
       status: "PENDING",
       source: "LINE",
       ipHash,

@@ -12,7 +12,6 @@ const EMPTY = {
   partySize: 1,
   customerName: "",
   phone: "",
-  note: "",
 };
 
 export default function ReservePage() {
@@ -161,16 +160,6 @@ export default function ReservePage() {
                   onChange={e => setForm({ ...form, phone: e.target.value })}
                 />
                 <p className="text-white/50 text-xs mt-1">当日のご連絡に使わせていただきます</p>
-              </Field>
-
-              <Field label="ご要望">
-                <textarea
-                  className="input-field min-h-24"
-                  maxLength={500}
-                  placeholder="席のご希望、記念日など"
-                  value={form.note}
-                  onChange={e => setForm({ ...form, note: e.target.value })}
-                />
               </Field>
 
               <p className="text-white/50 text-xs leading-relaxed">

@@ -31,7 +31,6 @@ const VALID = {
   partySize: 2,
   customerName: "星野 狼",
   phone: "090-1234-5678",
-  note: "窓際希望",
 };
 
 const STORE_SLUG = "reservation-test";

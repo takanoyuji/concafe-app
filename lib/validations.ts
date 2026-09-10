@@ -78,7 +78,9 @@ export const ReservationSchema = z.object({
   partySize: z.number().int().min(1, "人数を選んでください"),
   customerName: z.string().min(1, "お名前は必須です").max(50, "お名前は50文字以内で入力してください"),
   phone: z.string().min(1, "電話番号は必須です"),
-  note: z.string().max(500, "ご要望は500文字以内で入力してください").optional().default(""),
+  // お客様向けフォームは氏名・電話・日時・人数だけを受ける。
+  // 席の希望・記念日・自由記述は受け付けない（2026-09-10 決定）。
+  // zod は未知のキーを落とすので、直接POSTされても note は保存されない
 });
 
 /**
@@ -86,6 +88,8 @@ export const ReservationSchema = z.object({
  * 受付経路を選べる点と、過去日も入れられる点がお客様向けと違う。
  */
 export const AdminReservationSchema = ReservationSchema.extend({
+  /// 電話・DMで聞いた内容を店舗が書き留めるためのメモ。お客様は入力できない
+  note: z.string().max(500, "メモは500文字以内で入力してください").optional().default(""),
   source: z.enum(["LINE", "PHONE", "OTHER"]).default("PHONE"),
   status: z.enum(["PENDING", "CONFIRMED"]).default("CONFIRMED"),
 });
