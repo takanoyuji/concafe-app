@@ -1,6 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { trackLineClick, trackSnsClick } from "@/lib/analytics";
+
+const TicketIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <path d="M3 7h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4V7z" />
+    <path d="M13 7v12" strokeDasharray="2 2" />
+  </svg>
+);
 
 const XIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -54,8 +62,25 @@ export default function SnsSection() {
     <section id="sec07" className="py-20 px-4 star-bg">
       <h2 className="section-title gradient-text">SNS</h2>
 
-      {/* LINE 予約 */}
-      <div data-reveal className="max-w-sm mx-auto mb-10">
+      {/* 予約は公式HPのフォームに一律で寄せる運用（2026-09-09決定）。
+          LINEは友だち追加の導線として残す */}
+      <div data-reveal className="max-w-sm mx-auto mb-4">
+        <Link
+          href="/reserve"
+          className="glass flex items-center justify-center gap-3 p-5 hover:border-star-400 transition-all duration-300 hover:scale-105"
+        >
+          <span className="text-star-300">
+            <TicketIcon />
+          </span>
+          <div className="text-center">
+            <div className="font-bold text-white text-lg">席のご予約</div>
+            <div className="text-sm text-star-300 font-semibold">ご予約はこちら</div>
+          </div>
+        </Link>
+      </div>
+
+      {/* 公式LINE（友だち追加） */}
+      <div data-reveal data-reveal-delay="75" className="max-w-sm mx-auto mb-10">
         <a
           href="https://line.me/R/ti/p/@xinglang"
           target="_blank"
@@ -68,7 +93,7 @@ export default function SnsSection() {
           </span>
           <div className="text-center">
             <div className="font-bold text-white text-lg">公式LINE</div>
-            <div className="text-sm text-neon-purple font-semibold">ご予約はこちら</div>
+            <div className="text-sm text-neon-purple font-semibold">友だち追加はこちら</div>
           </div>
         </a>
       </div>
