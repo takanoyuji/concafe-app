@@ -78,8 +78,8 @@ export const ReservationSchema = z.object({
   partySize: z.number().int().min(1, "人数を選んでください"),
   customerName: z.string().min(1, "お名前は必須です").max(50, "お名前は50文字以内で入力してください"),
   phone: z.string().min(1, "電話番号は必須です"),
-  /// 通知先。受付・確定・お断りのメールを送る（要件書 10章）。会員との紐づけにも使う
-  email: z.string().trim().min(1, "メールアドレスは必須です").max(254).email("メールアドレスの形式が正しくありません"),
+  // メールアドレスは受け取らない。予約はログイン必須（2026-09-12 決定）で、
+  // 通知先は会員のメールアドレスをサーバー側で使う
   /// 遠隔ドリンクの購入ID（任意・自己申告）。承認の優先に使う。
   /// **形式が違っても弾かない。** BASE以外の経路や表記ゆれで申し込めなくなるほうが損なため。
   /// BASEの注文IDらしいかの判定は looksLikeBasePurchaseId() が行い、台帳の表示にだけ使う
@@ -95,7 +95,7 @@ export const ReservationSchema = z.object({
  */
 export const AdminReservationSchema = ReservationSchema.extend({
   /// 手入力ではメールアドレスは任意（電話で受けた分は聞いていないことが多い）。空なら通知は送らない
-  email: z.string().max(254).email("メールアドレスの形式が正しくありません").or(z.literal("")).optional().default(""),
+  email: z.string().trim().max(254).email("メールアドレスの形式が正しくありません").or(z.literal("")).optional().default(""),
   /// 電話・DMで聞いた内容を店舗が書き留めるためのメモ。お客様は入力できない
   note: z.string().max(500, "メモは500文字以内で入力してください").optional().default(""),
   source: z.enum(["LINE", "PHONE", "OTHER"]).default("PHONE"),

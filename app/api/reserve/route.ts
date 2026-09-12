@@ -15,16 +15,26 @@ import {
 } from "@/lib/reservation";
 
 /**
- * お客様からの席予約の申し込み。**ログイン不要**の公開API。
+ * お客様からの席予約の申し込み。**ログイン必須**（2026-09-12 決定・要件書 10章）。
  *
  * ここで作るのは PENDING（未対応）だけ。確定は管理画面から店舗が行う。
- * status / source をリクエストから受け取らないのは、公開APIから
+ * status / source をリクエストから受け取らないのは、このAPIから
  * 「確定済み」の予約を作られないようにするため。
  *
- * ログインしていれば会員IDを予約に記録する（マイページの「ご予約」に出すため。要件書 10章）。
- * ログインは必須ではない。
+ * 会員IDと会員のメールアドレスを予約に記録する。メールアドレスはフォームから受け取らず、
+ * 会員情報から取る（通知先を本人以外に向けられないようにするため。ログインできる会員は認証済み）。
  */
 export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session)
+    return NextResponse.json({ error: "ご予約には会員登録とログインが必要です" }, { status: 401 });
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { id: true, email: true },
+  });
+  if (!user)
+    return NextResponse.json({ error: "ご予約には会員登録とログインが必要です" }, { status: 401 });
+
   let body: unknown;
   try {
     body = await req.json();
@@ -79,9 +89,7 @@ export async function POST(req: Request) {
       { status: 429 }
     );
 
-  // ログイン中なら会員に紐づける。未ログインでも申し込める
-  const session = await getSession();
-  const email = normalizeEmail(input.email);
+  const email = normalizeEmail(user.email);
 
   const reservation = await prisma.reservation.create({
     data: {
@@ -92,7 +100,7 @@ export async function POST(req: Request) {
       customerName: input.customerName.trim(),
       phone,
       email,
-      userId: session?.userId ?? "",
+      userId: user.id,
       // 照合はしない。表記ゆれだけ吸収して自己申告のまま残す
       purchaseId: normalizePurchaseId(input.purchaseId ?? ""),
       // note はお客様向けフォームでは受け付けない（列は管理画面の手入力メモが使う）

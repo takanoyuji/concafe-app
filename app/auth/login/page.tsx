@@ -8,6 +8,9 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const verified = searchParams.get("verified");
+  // ログイン後の戻り先（例: 予約フォーム）。サイト内のパスだけ受け付ける（外部URLへ飛ばさない）
+  const nextParam = searchParams.get("next") ?? "";
+  const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +41,8 @@ function LoginForm() {
 
     if (data.user?.mustChangePassword) {
       router.push("/auth/reset-password");
+    } else if (next) {
+      router.push(next);
     } else if (data.user?.role === "ADMIN") {
       router.push("/admin");
     } else {

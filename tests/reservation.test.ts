@@ -50,13 +50,22 @@ const VALID = {
   partySize: 2,
   customerName: "星野 狼",
   phone: "090-1234-5678",
-  email: "hoshino@example.com",
 };
 
 const STORE_SLUG = "reservation-test";
 const ADMIN_EMAIL = "reservation-admin@example.com";
+// 予約はログイン必須なので、申し込みには会員が要る
+const MEMBER_EMAIL = "Hoshino@Example.com"; // 大文字混じり。保存時に小文字へ揃うことを見る
+const MEMBER2_EMAIL = "member2@example.com";
 let storeId = "";
 let adminId = "";
+let memberId = "";
+let member2Id = "";
+
+/** 会員としてログインした状態にする */
+function loginAs(userId: string) {
+  session.current = { userId, role: "CUSTOMER" };
+}
 
 beforeEach(async () => {
   await prisma.reservationEvent.deleteMany();
@@ -77,7 +86,21 @@ beforeEach(async () => {
     create: { email: ADMIN_EMAIL, passwordHash: "x", role: "ADMIN" },
   });
   adminId = admin.id;
-  session.current = null;
+
+  const [m1, m2] = await Promise.all(
+    [MEMBER_EMAIL, MEMBER2_EMAIL].map(email =>
+      prisma.user.upsert({
+        where: { email },
+        update: {},
+        create: { email, passwordHash: "x", role: "CUSTOMER", emailVerified: true },
+      })
+    )
+  );
+  memberId = m1.id;
+  member2Id = m2.id;
+
+  // 既定はログイン済みの会員。未ログインを試すテストは session.current = null にする
+  loginAs(memberId);
   mail.sent = [];
   mail.fail = false;
 });
@@ -87,7 +110,7 @@ afterAll(async () => {
   await prisma.reservationEvent.deleteMany();
   await prisma.reservation.deleteMany();
   await prisma.store.deleteMany({ where: { slug: STORE_SLUG } });
-  await prisma.user.deleteMany({ where: { email: ADMIN_EMAIL } });
+  await prisma.user.deleteMany({ where: { email: { in: [ADMIN_EMAIL, MEMBER_EMAIL, MEMBER2_EMAIL] } } });
 });
 
 describe("予約の申し込み（公開API）", () => {
@@ -134,28 +157,18 @@ describe("予約の申し込み（公開API）", () => {
     expect(row.source).toBe("LINE");
   });
 
-  it("メールアドレスは必須。形が違えば弾く", async () => {
-    const { email: _omit, ...noEmail } = VALID;
-    void _omit;
-    expect((await reservePOST(reserveReq({ ...noEmail, storeId }))).status).toBe(400);
-    expect((await reservePOST(reserveReq({ ...VALID, storeId, email: "not-an-email" }))).status).toBe(400);
+  it("未ログインでは申し込めない（予約は会員登録・ログイン必須）", async () => {
+    session.current = null;
+    const res = await reservePOST(reserveReq({ ...VALID, storeId }));
+    expect(res.status).toBe(401);
     expect(await prisma.reservation.count()).toBe(0);
   });
 
-  it("メールアドレスは小文字・空白なしに揃えて保存する（会員との突き合わせ用）", async () => {
-    await reservePOST(reserveReq({ ...VALID, storeId, email: " Hoshino@Example.com " }));
+  it("会員IDと会員のメールアドレス（小文字に揃えたもの）が予約に付く。フォームのメールは無視する", async () => {
+    await reservePOST(reserveReq({ ...VALID, storeId, email: "attacker@example.com" }));
     const row = await prisma.reservation.findFirstOrThrow();
+    expect(row.userId).toBe(memberId);
     expect(row.email).toBe("hoshino@example.com");
-  });
-
-  it("ログイン中の申し込みは会員IDが付く。未ログインなら空", async () => {
-    await reservePOST(reserveReq({ ...VALID, storeId }));
-    session.current = { userId: "member-1", role: "CUSTOMER" };
-    await reservePOST(reserveReq({ ...VALID, storeId, phone: "090-2222-3333" }));
-
-    const rows = await prisma.reservation.findMany({ orderBy: { createdAt: "asc" } });
-    expect(rows[0].userId).toBe("");
-    expect(rows[1].userId).toBe("member-1");
   });
 
   it("受け付けたら受付メールを送る", async () => {
@@ -283,12 +296,10 @@ describe("予約台帳（管理API）", () => {
 
   it("手入力はメールアドレス無しでも入り、自動メールは送らない", async () => {
     session.current = { userId: adminId, role: "ADMIN" };
-    const { email: _omit, ...noEmail } = VALID;
-    void _omit;
     const res = await adminPOST(
       new Request("http://localhost/api/admin/reservations", {
         method: "POST",
-        body: JSON.stringify({ ...noEmail, storeId, source: "PHONE", status: "CONFIRMED" }),
+        body: JSON.stringify({ ...VALID, storeId, source: "PHONE", status: "CONFIRMED" }),
       })
     );
     expect(res.status).toBe(201);
@@ -377,42 +388,52 @@ describe("会員のマイページに出す予約（要件書 10章）", () => {
   const ME = "hoshino@example.com";
 
   async function seed() {
-    // 1. ログイン中に自分で申し込んだ（メールは別のもの）
-    session.current = { userId: "member-1", role: "CUSTOMER" };
-    await reservePOST(reserveReq({ ...VALID, storeId, email: "other@example.com" }));
-    // 2. 未ログインで同じメールアドレスから申し込んだ
-    session.current = null;
-    await reservePOST(reserveReq({ ...VALID, storeId, phone: "090-2222-3333", email: ME }));
-    // 3. 他人の予約
-    await reservePOST(reserveReq({ ...VALID, storeId, phone: "090-4444-5555", email: "someone@example.com" }));
-    // 4. 別の会員がログイン中に申し込んだ
-    session.current = { userId: "member-2", role: "CUSTOMER" };
-    await reservePOST(reserveReq({ ...VALID, storeId, phone: "090-6666-7777", email: "m2@example.com" }));
+    // 1. 自分がログインして申し込んだ
+    loginAs(memberId);
+    await reservePOST(reserveReq({ ...VALID, storeId }));
+    // 2. 別の会員が申し込んだ
+    loginAs(member2Id);
+    await reservePOST(reserveReq({ ...VALID, storeId, phone: "090-6666-7777" }));
+    // 3. 店舗が電話で受けて手入力した分（メールアドレス付き）。userId は付かない
+    session.current = { userId: adminId, role: "ADMIN" };
+    await adminPOST(
+      new Request("http://localhost/api/admin/reservations", {
+        method: "POST",
+        body: JSON.stringify({ ...VALID, storeId, phone: "090-2222-3333", email: ME, source: "PHONE" }),
+      })
+    );
+    // 4. 手入力・メールアドレス無し
+    await adminPOST(
+      new Request("http://localhost/api/admin/reservations", {
+        method: "POST",
+        body: JSON.stringify({ ...VALID, storeId, phone: "090-4444-5555", source: "PHONE" }),
+      })
+    );
     session.current = null;
   }
 
-  it("メール認証済みの会員は、自分で申し込んだ分と同じメールアドレスの分が見える", async () => {
+  it("メール認証済みの会員は、自分で申し込んだ分と、同じメールアドレスで手入力された分が見える", async () => {
     await seed();
     const rows = await prisma.reservation.findMany({
-      where: customerReservationWhere({ id: "member-1", email: ME, emailVerified: true }),
+      where: customerReservationWhere({ id: memberId, email: MEMBER_EMAIL, emailVerified: true }),
     });
     expect(rows.map(r => r.phone).sort()).toEqual(["09012345678", "09022223333"]);
   });
 
-  it("未認証の会員には、ログイン中に自分で申し込んだ分しか見せない（他人のメールで登録して覗く経路を塞ぐ）", async () => {
+  it("未認証の会員には、自分で申し込んだ分しか見せない（他人のメールで登録して覗く経路を塞ぐ）", async () => {
     await seed();
     const rows = await prisma.reservation.findMany({
-      where: customerReservationWhere({ id: "member-1", email: ME, emailVerified: false }),
+      where: customerReservationWhere({ id: memberId, email: MEMBER_EMAIL, emailVerified: false }),
     });
     expect(rows.map(r => r.phone)).toEqual(["09012345678"]);
   });
 
-  it("会員のメールアドレスは大文字が混じっていても突き合わせられる", async () => {
+  it("他の会員の予約は見えない", async () => {
     await seed();
     const rows = await prisma.reservation.findMany({
-      where: customerReservationWhere({ id: "nobody", email: "Hoshino@Example.com", emailVerified: true }),
+      where: customerReservationWhere({ id: member2Id, email: MEMBER2_EMAIL, emailVerified: true }),
     });
-    expect(rows.map(r => r.phone)).toEqual(["09022223333"]);
+    expect(rows.map(r => r.phone)).toEqual(["09066667777"]);
     expect(normalizeEmail("  A@B.JP ")).toBe("a@b.jp");
   });
 
