@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import NavBar from "@/components/ui/NavBar";
 import { SETTINGS, addDays, jstNow, timeOptions } from "@/lib/reservation";
 
@@ -12,6 +13,7 @@ const EMPTY = {
   partySize: 1,
   customerName: "",
   phone: "",
+  email: "",
   purchaseId: "",
 };
 
@@ -21,6 +23,8 @@ export default function ReservePage() {
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");
+  // ログイン中の会員か。完了画面の案内を出し分ける（会員はマイページで状況を見られる）
+  const [member, setMember] = useState(false);
 
   // 日付の下限・上限はJSTで出す（サーバーがUTCでも入力欄がずれないように）
   const today = useMemo(() => jstNow().date, []);
@@ -32,6 +36,23 @@ export default function ReservePage() {
       .then(r => (r.ok ? r.json() : []))
       .then((d: Store[]) => setStores(d.map(s => ({ id: s.id, name: s.name }))))
       .catch(() => setStores([]));
+  }, []);
+
+  // ログイン中なら名前とメールアドレスを埋めておく（入力の手間を減らす。書き換えは可）
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: { user?: { email: string } } | null) => {
+        if (!d?.user) return;
+        setMember(true);
+        setForm(f => ({ ...f, email: f.email || d.user!.email }));
+        return fetch("/api/me/profile-data")
+          .then(r => (r.ok ? r.json() : null))
+          .then((p: { name?: string | null } | null) => {
+            if (p?.name) setForm(f => ({ ...f, customerName: f.customerName || p.name! }));
+          });
+      })
+      .catch(() => {});
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -69,9 +90,27 @@ export default function ReservePage() {
             {/* 承認制であることは、ここで曖昧にしない */}
             <p className="text-white/80 leading-relaxed">
               この時点ではまだ<strong className="text-star-400">ご予約は確定していません</strong>。
-              店舗が内容を確認し、公式LINEのトークから確定 / 満席のご連絡をいたします。
+              店舗が内容を確認し、確定 / 満席のご連絡をメールと公式LINEのトークでいたします。
               少々お待ちください。
             </p>
+            <p className="text-white/60 text-sm">
+              受付のメールを <span className="text-white/80">{form.email}</span> にお送りしました。
+              届いていない場合は迷惑メールフォルダをご確認ください。
+            </p>
+            {member ? (
+              <p className="text-white/60 text-sm">
+                予約の状況は{" "}
+                <Link href="/me/reservations" className="text-neon-purple underline">マイページの「ご予約」</Link>
+                {" "}からいつでも確認できます。
+              </p>
+            ) : (
+              <p className="text-white/60 text-sm">
+                {/* 会員なら状況を見られる。登録を強制はしない（4-1 の決定） */}
+                このメールアドレスで
+                <Link href="/auth/signup" className="text-neon-purple underline">会員登録</Link>
+                すると、マイページから予約の状況を確認できます。
+              </p>
+            )}
             <p className="text-white/60 text-sm">
               お急ぎの場合や、当日のご来店時間が変わる場合は、公式LINEからご連絡ください。
             </p>
@@ -80,7 +119,7 @@ export default function ReservePage() {
           <>
             <p className="text-white/70 text-sm leading-relaxed mb-6">
               お申し込みの時点ではご予約は確定しません。店舗が内容を確認したうえで、
-              公式LINEのトークから確定 / 満席のご連絡をいたします。
+              メールと公式LINEのトークで確定 / 満席のご連絡をいたします。
             </p>
 
             <form onSubmit={submit} className="glass p-6 space-y-5">
@@ -161,6 +200,23 @@ export default function ReservePage() {
                   onChange={e => setForm({ ...form, phone: e.target.value })}
                 />
                 <p className="text-white/50 text-xs mt-1">当日のご連絡に使わせていただきます</p>
+              </Field>
+
+              <Field label="メールアドレス" required>
+                <input
+                  className="input-field"
+                  required
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  maxLength={254}
+                  placeholder="example@example.com"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                />
+                <p className="text-white/50 text-xs mt-1">
+                  受付・確定のご連絡をお送りします。会員の方は登録したアドレスと同じものをご入力ください
+                </p>
               </Field>
 
               {/* 遠隔で買ってくれた方を承認で優先するために聞く。購入は予約の条件ではないので、

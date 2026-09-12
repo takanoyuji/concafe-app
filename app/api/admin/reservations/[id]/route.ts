@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { ReservationStatusSchema } from "@/lib/validations";
+import { sendReservationConfirmedEmail, sendReservationDeclinedEmail } from "@/lib/email";
 import { canTransition, STATUS_LABEL, type ReservationStatus } from "@/lib/reservation";
 
 /** 1件の詳細と、状態変更の履歴 */
@@ -39,7 +40,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!parsed.success)
     return NextResponse.json({ error: "状態の指定が正しくありません" }, { status: 400 });
 
-  const current = await prisma.reservation.findUnique({ where: { id } });
+  const current = await prisma.reservation.findUnique({
+    where: { id },
+    include: { store: { select: { name: true } } },
+  });
   if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const to = parsed.data.status;
@@ -76,6 +80,25 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     });
     return r;
   });
+
+  // 確定 / お断りはお客様にメールで知らせる（要件書 10章）。
+  // 送れなくても状態変更は通す。LINEでの連絡も続けるので、失敗はログに残すだけ
+  if (current.email && (to === "CONFIRMED" || to === "DECLINED")) {
+    const info = {
+      to: current.email,
+      storeName: current.store?.name ?? "",
+      visitDate: current.visitDate,
+      visitTime: current.visitTime,
+      partySize: current.partySize,
+      customerName: current.customerName,
+    };
+    try {
+      if (to === "CONFIRMED") await sendReservationConfirmedEmail(info);
+      else await sendReservationDeclinedEmail(info);
+    } catch (e) {
+      console.error("[RESERVATION] 結果メールの送信に失敗:", id, to, e);
+    }
+  }
 
   return NextResponse.json({ id: updated.id, status: updated.status });
 }

@@ -393,6 +393,13 @@ model Reservation {
   /// 形式が違っても保存する（表記ゆれや別経路の購入で申し込めなくなるほうが損なため）。
   purchaseId String @default("")
 
+  /// 通知先。受付・確定・お断りのメールを送る。会員との紐づけにも使う（10章）。
+  /// お客様のフォームでは必須、管理画面の手入力では任意（空文字）
+  email String @default("")
+  /// ログイン中に申し込んだ会員の User.id。未ログインの申し込みは空。
+  /// 関係は張らない（会員を消しても予約の記録は残す）
+  userId String @default("")
+
   /// PENDING（未対応）/ CONFIRMED（確定）/ DECLINED（お断り）/
   /// CANCELED（キャンセル）/ VISITED（来店済み）/ NO_SHOW（無断キャンセル）
   status String @default("PENDING")
@@ -413,6 +420,8 @@ model Reservation {
   @@index([visitDate, visitTime])
   @@index([status])
   @@index([phone, createdAt])
+  @@index([userId])
+  @@index([email])
 }
 
 /// 予約の状態変更の履歴。「いつ誰がキャンセルにしたか」を後から追えるようにするためのもの。

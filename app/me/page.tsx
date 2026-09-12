@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getUserBalance, getUserTitle } from "@/lib/points";
 import { PUBLIC_CAST_WHERE } from "@/lib/cast";
+import { customerReservationWhere } from "@/lib/reservation";
 import NavBar from "@/components/ui/NavBar";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function MePage() {
     prisma.user.findUnique({
       where: { id: session.userId },
       select: {
-        id: true, email: true, role: true, birthdate: true, ageVerified: true, createdAt: true,
+        id: true, email: true, emailVerified: true, role: true, birthdate: true, ageVerified: true, createdAt: true,
         name: true, favoriteStoreId: true, favoriteCast1Id: true, favoriteCast2Id: true,
       },
     }),
@@ -51,6 +52,13 @@ export default async function MePage() {
     user.favoriteCast2Id
       ? prisma.cast.findFirst({ where: { id: user.favoriteCast2Id, ...PUBLIC_CAST_WHERE }, select: { name: true } })
       : null,
+  ]);
+
+  // ご予約（要件書 10章）。件数だけ出して、一覧は /me/reservations に任せる
+  const reservationWhere = customerReservationWhere(user);
+  const [reservationTotal, reservationPending] = await Promise.all([
+    prisma.reservation.count({ where: reservationWhere }),
+    prisma.reservation.count({ where: { ...reservationWhere, status: "PENDING" } }),
   ]);
 
   // 最近のGIFT履歴（一般ユーザー用）
@@ -195,6 +203,21 @@ export default async function MePage() {
             </>
           )}
         </div>
+
+        {/* ご予約 */}
+        <Link href="/me/reservations" className="glass p-6 flex items-center justify-between hover:bg-white/5 transition">
+          <div>
+            <span className="text-white/50 text-xs">ご予約</span>
+            <p className="text-white font-bold mt-1">
+              {reservationTotal === 0
+                ? "ご予約はまだありません"
+                : reservationPending > 0
+                  ? `申請中 ${reservationPending}件`
+                  : `全${reservationTotal}件`}
+            </p>
+          </div>
+          <span className="text-neon-purple text-sm">確認する →</span>
+        </Link>
 
         {/* ポイント残高 */}
         <div className="glass p-6 text-center">

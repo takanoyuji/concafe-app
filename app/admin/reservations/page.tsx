@@ -23,6 +23,8 @@ interface Reservation {
   partySize: number;
   customerName: string;
   phone: string;
+  /// 通知先。手入力の分は空のことがある
+  email: string;
   note: string;
   /// お客様の自己申告。照合はしていない
   purchaseId: string;
@@ -60,6 +62,7 @@ const MANUAL_EMPTY = {
   partySize: 1,
   customerName: "",
   phone: "",
+  email: "",
   note: "",
   purchaseId: "",
   source: "PHONE" as ReservationSource,
@@ -259,6 +262,9 @@ export default function ReservationLedgerPage() {
                 onChange={e => setManual({ ...manual, customerName: e.target.value })} />
               <input className="input-field" required placeholder="電話番号" inputMode="tel" value={manual.phone}
                 onChange={e => setManual({ ...manual, phone: e.target.value })} />
+              {/* 手入力では任意。空なら通知は送らない */}
+              <input className="input-field" type="email" placeholder="メールアドレス（任意）" inputMode="email" value={manual.email}
+                onChange={e => setManual({ ...manual, email: e.target.value })} />
               <select className="input-field" value={manual.source}
                 onChange={e => setManual({ ...manual, source: e.target.value as ReservationSource })}>
                 {(Object.keys(SOURCE_LABEL) as ReservationSource[]).map(s => (
@@ -354,6 +360,7 @@ function Section({
               <span className="text-white/70 text-sm">{r.partySize}名</span>
               <span className="text-white/90">{r.customerName} 様</span>
               <a href={`tel:${r.phone}`} className="text-neon-cyan text-sm underline">{r.phone}</a>
+              {r.email && <span className="text-white/60 text-xs">{r.email}</span>}
               <span className="text-white/40 text-xs">{SOURCE_LABEL[r.source]}受付</span>
               <button onClick={() => onToggle(r.id)} className="ml-auto text-white/50 hover:text-white text-xs">
                 {openId === r.id ? "履歴を閉じる" : "履歴"}

@@ -69,6 +69,45 @@ export const STATUS_LABEL: Record<ReservationStatus, string> = {
   NO_SHOW:   "無断キャンセル",
 };
 
+/**
+ * お客様に見せる状態の言葉（要件書 10章・2026-09-12 決定）。
+ * 「来店済み」「無断キャンセル」は店舗の内部記録なので見せず、「予約確定」のまま出す。
+ * 台帳用の STATUS_LABEL と混ぜないこと（台帳は6つ全部を区別して見せる）。
+ */
+export const CUSTOMER_STATUS_LABEL: Record<ReservationStatus, string> = {
+  PENDING:   "申請中",
+  CONFIRMED: "予約確定",
+  DECLINED:  "お受けできませんでした",
+  CANCELED:  "キャンセル済み",
+  VISITED:   "予約確定",
+  NO_SHOW:   "予約確定",
+};
+
+/**
+ * マイページに出す予約の条件（要件書 10章）。
+ *
+ * 1. ログイン中に自分で申し込んだもの（userId が一致）
+ * 2. **メール認証済み**の会員で、予約のメールアドレスが会員のメールアドレスと一致するもの
+ *
+ * 2 に認証済みの条件を付けるのは、他人のメールアドレスで登録して予約の内容（氏名・電話番号）を
+ * 覗く経路を塞ぐため。未認証の会員には 1 だけを見せる。
+ * 電話番号では突き合わせない（会員はメールでしか識別していない）。
+ */
+export function customerReservationWhere(user: {
+  id: string;
+  email: string;
+  emailVerified: boolean;
+}): { OR: Array<{ userId: string } | { email: string }> } {
+  const or: Array<{ userId: string } | { email: string }> = [{ userId: user.id }];
+  if (user.emailVerified && user.email) or.push({ email: normalizeEmail(user.email) });
+  return { OR: or };
+}
+
+/** メールアドレスの保存形。前後の空白を落として小文字にする（突き合わせの表記ゆれを減らす） */
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 export const SOURCES = ["LINE", "PHONE", "OTHER"] as const;
 export type ReservationSource = (typeof SOURCES)[number];
 

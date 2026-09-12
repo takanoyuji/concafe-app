@@ -8,6 +8,7 @@ import {
   isStatus,
   normalizePhone,
   isValidPhone,
+  normalizeEmail,
   normalizePurchaseId,
   looksLikeBasePurchaseId,
   jstNow,
@@ -51,6 +52,7 @@ export async function GET(req: Request) {
       partySize: r.partySize,
       customerName: r.customerName,
       phone: r.phone,
+      email: r.email,
       note: r.note,
       purchaseId: r.purchaseId,
       /// 形が BASE の注文IDらしいか。照合結果ではなく見た目の判定にすぎない
@@ -99,6 +101,8 @@ export async function POST(req: Request) {
       partySize: input.partySize,
       customerName: input.customerName.trim(),
       phone,
+      // 手入力では任意。空なら通知は送らない。手入力分に自動メールは送らない（店舗が直接話しているため）
+      email: normalizeEmail(input.email ?? ""),
       note: input.note ?? "",
       purchaseId: normalizePurchaseId(input.purchaseId ?? ""),
       status: input.status,

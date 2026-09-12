@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { sendReservationReceivedEmail } from "@/lib/email";
 import { ReservationSchema } from "@/lib/validations";
 import {
   SETTINGS,
   checkVisitWindow,
   normalizePhone,
   isValidPhone,
+  normalizeEmail,
   normalizePurchaseId,
   timeOptions,
 } from "@/lib/reservation";
@@ -17,6 +20,9 @@ import {
  * ここで作るのは PENDING（未対応）だけ。確定は管理画面から店舗が行う。
  * status / source をリクエストから受け取らないのは、公開APIから
  * 「確定済み」の予約を作られないようにするため。
+ *
+ * ログインしていれば会員IDを予約に記録する（マイページの「ご予約」に出すため。要件書 10章）。
+ * ログインは必須ではない。
  */
 export async function POST(req: Request) {
   let body: unknown;
@@ -73,6 +79,10 @@ export async function POST(req: Request) {
       { status: 429 }
     );
 
+  // ログイン中なら会員に紐づける。未ログインでも申し込める
+  const session = await getSession();
+  const email = normalizeEmail(input.email);
+
   const reservation = await prisma.reservation.create({
     data: {
       storeId: store.id,
@@ -81,6 +91,8 @@ export async function POST(req: Request) {
       partySize: input.partySize,
       customerName: input.customerName.trim(),
       phone,
+      email,
+      userId: session?.userId ?? "",
       // 照合はしない。表記ゆれだけ吸収して自己申告のまま残す
       purchaseId: normalizePurchaseId(input.purchaseId ?? ""),
       // note はお客様向けフォームでは受け付けない（列は管理画面の手入力メモが使う）
@@ -90,6 +102,20 @@ export async function POST(req: Request) {
       events: { create: { fromStatus: "", toStatus: "PENDING", memo: "お客様からの申し込み" } },
     },
   });
+
+  // 受付メール。送れなくても申し込みは成立させる（LINEでの連絡も続けるため）
+  try {
+    await sendReservationReceivedEmail({
+      to: email,
+      storeName: store.name,
+      visitDate: reservation.visitDate,
+      visitTime: reservation.visitTime,
+      partySize: reservation.partySize,
+      customerName: reservation.customerName,
+    });
+  } catch (e) {
+    console.error("[RESERVATION] 受付メールの送信に失敗:", reservation.id, e);
+  }
 
   // お客様には予約IDだけ返す。他人の予約を引ける経路を作らないため、内容は返さない
   return NextResponse.json({ id: reservation.id, status: "PENDING" }, { status: 201 });
