@@ -40,12 +40,27 @@ export async function assertPeriodComplete(storeSlug: string, from: string, to: 
   }
   if (missing.length > 0) {
     const head = missing.slice(0, 10).join("、");
+    // 前日以降が欠けているのは取り込みの故障ではなく、まだ cron（毎朝8時JST・前日まで）が
+    // 走っていないだけ。管理画面の取り込みは取得済みJSONを入れ直すだけで Airレジ からは
+    // 取れない（固定IP制限）ので、そこへ誘導すると無駄足になる。16日の早朝に「後半」を
+    // 選んで15日分が無い、が実例（2026-09-16）
+    const yesterday = jstYmd(-1);
+    const notYetFetched = missing.some(d => d >= yesterday);
     throw new AirRegiPeriodError(
       `${storeSlug} の ${from}〜${to} で、取り込めていない営業日が ${missing.length} 日あります: ` +
       `${head}${missing.length > 10 ? " ほか" : ""}。` +
-      `管理画面の「Airレジ 取り込み状況」から取り込み直してください`
+      (notYetFetched
+        ? `前日までの売上は毎朝8時に自動で取り込まれます。期間の選択（前半/後半・月）を確かめ、` +
+          `前日分が必要なときは8時以降にやり直してください`
+        : `管理画面の「Airレジ 取り込み状況」から取り込み直してください`)
     );
   }
+}
+
+/** 日本時間で今日から offsetDays ずらした日付を YYYYMMDD で返す。サーバーのTZはUTCなので直接 Date は使わない */
+function jstYmd(offsetDays: number): string {
+  const t = new Date(Date.now() + 9 * 60 * 60 * 1000 + offsetDays * 24 * 60 * 60 * 1000);
+  return `${t.getUTCFullYear()}${String(t.getUTCMonth() + 1).padStart(2, "0")}${String(t.getUTCDate()).padStart(2, "0")}`;
 }
 
 /** YYYYMMDD の from〜to を1日ずつ返す */

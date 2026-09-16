@@ -87,6 +87,9 @@ export default function AdminPage() {
   const [wageFile, setWageFile] = useState<File | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [salarySummary, setSalarySummary] = useState<SalarySummary | null>(null);
+  // 計算が止まった理由。flash はページ最上部に3秒しか出ず、給与タブまでスクロールしていると
+  // 視界の外で消えて「押しても無反応」に見える（2026-09-16）。ボタンの直下に、次の計算まで残す
+  const [salaryError, setSalaryError] = useState<string | null>(null);
   // 所属店舗が分からず、どの店舗にも計上されなかった遠隔売上
   const [remodriOrphans, setRemodriOrphans] = useState<{ castCode: string; name: string; amount: number }[]>([]);
   // Airレジ APIの取り込みが欠けている営業日。cronが静かに止まったことに気づくため
@@ -393,6 +396,7 @@ export default function AdminPage() {
     if (salarySource === "csv" && !salesFile) { flash("売上CSVをアップロードしてください", true); return; }
     setCalculating(true);
     setSalarySummary(null);
+    setSalaryError(null);
     try {
       const form = new FormData();
       form.append("store", salaryStore);
@@ -405,12 +409,22 @@ export default function AdminPage() {
       form.append("half",  String(salaryHalf));
       if (saveToDB) form.append("save", "1");
       const res = await fetch("/api/admin/salary", { method: "POST", body: form });
-      const d = await res.json();
-      if (res.ok) {
+      // 500 や nginx 側のエラーは JSON でない。res.json() が例外になると catch が無く
+      // 無言で終わるので（2026-08-14 と同じ壊れ方）、本文を読めなくても必ず理由を出す
+      const d = await res.json().catch(() => null);
+      if (res.ok && d) {
         setSalarySummary(d.summary);
         setRemodriOrphans(d.remodriOrphans ?? []);
         if (saveToDB && d.periodId) { flash("計算完了・DB保存しました"); fetchAll(); }
-      } else { flash(d.error ?? "計算エラー", true); }
+      } else {
+        const reason = d?.error ?? `サーバーエラー（HTTP ${res.status}）。時間をおいて再度お試しください`;
+        setSalaryError(reason);
+        flash(reason, true);
+      }
+    } catch (e) {
+      const reason = `通信に失敗しました: ${e instanceof Error ? e.message : String(e)}`;
+      setSalaryError(reason);
+      flash(reason, true);
     } finally {
       setCalculating(false);
     }
@@ -1302,6 +1316,12 @@ export default function AdminPage() {
                   <span className="text-xs text-star-300">DB保存データあり</span>
                 )}
               </div>
+              {salaryError && (
+                <div role="alert" data-testid="salary-error"
+                  className="rounded-lg border border-neon-pink/50 bg-neon-pink/10 p-3 text-sm text-neon-pink whitespace-pre-wrap break-all">
+                  <span className="font-bold">計算できませんでした: </span>{salaryError}
+                </div>
+              )}
             </div>
 
             {/* 合算給与（DBから集計） */}

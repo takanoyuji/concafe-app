@@ -118,6 +118,20 @@ describe("期間の取り込み漏れ", () => {
     await expect(assertPeriodComplete(SLUG, "20260801", "20260803")).rejects.toThrow(/20260802/);
   });
 
+  it("前日以降が欠けているときは cron 待ちだと案内し、過去日の欠けは取り込み直しへ誘導する", async () => {
+    // 前日〜今日を含む期間（日本時間）
+    const jst = new Date(Date.now() + 9 * 3600 * 1000);
+    const ymd = (d: Date) => `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+    const today = ymd(jst);
+    const yesterday = ymd(new Date(jst.getTime() - 86400_000));
+    await expect(assertPeriodComplete(SLUG, yesterday, today)).rejects.toThrow(/毎朝8時/);
+    // 過去日だけの欠け
+    await markSynced("20260801");
+    await markSynced("20260803");
+    await expect(assertPeriodComplete(SLUG, "20260801", "20260803")).rejects.toThrow(/取り込み直してください/);
+    await expect(assertPeriodComplete(SLUG, "20260801", "20260803")).rejects.not.toThrow(/毎朝8時/);
+  });
+
   it("取引0件の日は欠けにしない（台帳に ok で載っているため）", async () => {
     for (const d of eachDate("20260801", "20260802")) await markSynced(d);
     await expect(assertPeriodComplete(SLUG, "20260801", "20260802")).resolves.toBeUndefined();
