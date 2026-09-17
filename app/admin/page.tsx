@@ -85,6 +85,11 @@ export default function AdminPage() {
   const [salarySource, setSalarySource] = useState<"api" | "csv">("api");
   const [salesFile, setSalesFile] = useState<File | null>(null);
   const [wageFile, setWageFile] = useState<File | null>(null);
+  // 人件費の出どころ。既定はエアシフトの人件費CSV。みせ勤は .env に接続設定があるときだけ選べる
+  const [wageSource, setWageSource] = useState<"csv" | "misekin">("csv");
+  const [misekinConfigured, setMisekinConfigured] = useState(false);
+  // みせ勤に打刻はあるが、社員コードがキャストマスタに無い人（計算から外れている）
+  const [misekinOrphans, setMisekinOrphans] = useState<{ staffName: string; employeeCode: string | null; minutes: number }[]>([]);
   const [calculating, setCalculating] = useState(false);
   const [salarySummary, setSalarySummary] = useState<SalarySummary | null>(null);
   // 計算が止まった理由。flash はページ最上部に3秒しか出ず、給与タブまでスクロールしていると
@@ -165,6 +170,7 @@ export default function AdminPage() {
     setCastRanks(ranks.ranks ?? []);
     setCastMasters(masters.masters ?? []);
     setSalaryPeriods(history.periods ?? []);
+    setMisekinConfigured(Boolean(history.misekinConfigured));
     setStores(storeResults.map((r, i) => ({
       id: r.store?.id ?? "",
       slug: slugs[i],
@@ -392,7 +398,7 @@ export default function AdminPage() {
 
   // Salary calculation
   const runSalaryCalc = async () => {
-    if (!wageFile) { flash("人件費CSVをアップロードしてください", true); return; }
+    if (wageSource === "csv" && !wageFile) { flash("人件費CSVをアップロードしてください", true); return; }
     if (salarySource === "csv" && !salesFile) { flash("売上CSVをアップロードしてください", true); return; }
     setCalculating(true);
     setSalarySummary(null);
@@ -402,7 +408,8 @@ export default function AdminPage() {
       form.append("store", salaryStore);
       form.append("source", salarySource);
       if (salesFile) form.append("salesCsv", salesFile);
-      form.append("wageCsv", wageFile);
+      form.append("wageSource", wageSource);
+      if (wageFile) form.append("wageCsv", wageFile);
       // 期間は remodri（遠隔売上）の取得に必要なので、保存しないときも必ず送る
       form.append("year",  String(salaryYear));
       form.append("month", String(salaryMonth));
@@ -415,6 +422,7 @@ export default function AdminPage() {
       if (res.ok && d) {
         setSalarySummary(d.summary);
         setRemodriOrphans(d.remodriOrphans ?? []);
+        setMisekinOrphans(d.misekinOrphans ?? []);
         if (saveToDB && d.periodId) { flash("計算完了・DB保存しました"); fetchAll(); }
       } else {
         const reason = d?.error ?? `サーバーエラー（HTTP ${res.status}）。時間をおいて再度お試しください`;
@@ -1293,20 +1301,48 @@ export default function AdminPage() {
                     }} />
                   {salesFile && <p className="text-xs text-white/40 mt-1">{salesFile.name}</p>}
                 </div>
-                <div>
-                  <label className="text-xs text-white/60 block mb-1">人件費CSV（UTF-8）<span className="text-neon-pink"> *</span></label>
-                  <input type="file" accept=".csv"
-                    className="input-field text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-neon-violet/20 file:text-neon-violet cursor-pointer"
+                <div className={wageSource === "misekin" ? "opacity-40" : ""}>
+                  <label className="text-xs text-white/60 block mb-1">
+                    人件費CSV（UTF-8）
+                    {wageSource === "csv"
+                      ? <span className="text-neon-pink"> *</span>
+                      : <span className="text-white/40">（みせ勤を使うので不要）</span>}
+                  </label>
+                  <input type="file" accept=".csv" disabled={wageSource === "misekin"}
+                    className="input-field text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-neon-violet/20 file:text-neon-violet cursor-pointer disabled:cursor-not-allowed"
                     onChange={e => setWageFile(e.target.files?.[0] ?? null)} />
                   {wageFile && <p className="text-xs text-white/40 mt-1">{wageFile.name}</p>}
                 </div>
               </div>
+              {/* 人件費の出どころ。みせ勤は接続設定があるときだけ出す（2026-09-17）。
+                  時給・交通費が みせ勤に未登録だと API 側が止めるので、黙って0にはならない */}
+              {misekinConfigured && (
+                <div className="flex items-center gap-4 text-sm flex-wrap">
+                  <span className="text-xs text-white/60">人件費の出どころ</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="wageSource" className="accent-neon-violet"
+                      checked={wageSource === "csv"} onChange={() => setWageSource("csv")} />
+                    <span>人件費CSV（エアシフト）</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="wageSource" className="accent-neon-violet"
+                      checked={wageSource === "misekin"}
+                      onChange={() => { setWageSource("misekin"); setWageFile(null); }} />
+                    <span>みせ勤</span>
+                  </label>
+                  <span className="text-xs text-white/40">
+                    {wageSource === "misekin"
+                      ? "みせ勤の打刻から 実労働×時給 と交通費を作ります。時給が未登録の人がいると止まります"
+                      : "エアシフトの「概算人件費シミュレーション」CSVを使います"}
+                  </span>
+                </div>
+              )}
               <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
                 <input type="checkbox" checked={saveToDB} onChange={e => setSaveToDB(e.target.checked)} className="accent-neon-violet" />
                 計算結果をDBに保存（{salaryYear}/{String(salaryMonth).padStart(2,"0")} {halfLabel(salaryHalf)}）
               </label>
               <div className="flex gap-3 items-center flex-wrap">
-                <button onClick={runSalaryCalc} disabled={calculating || !wageFile || (salarySource === "csv" && !salesFile)} className="btn-primary">
+                <button onClick={runSalaryCalc} disabled={calculating || (wageSource === "csv" && !wageFile) || (salarySource === "csv" && !salesFile)} className="btn-primary">
                   {calculating ? "計算中..." : "計算実行"}
                 </button>
                 <button onClick={loadSalaryFromDB} disabled={calculating || !hasDBData} className="btn-primary bg-white/10 hover:bg-white/20">
@@ -1679,6 +1715,13 @@ export default function AdminPage() {
                             remodri（{fmt(s.remodriSales ?? 0)}）の両方に金額があります。
                             2026-08-16 以降の遠隔は remodri に一本化されている想定です。
                             エアレジ側にも遠隔が入力されていないか確認してください。
+                          </div>
+                        )}
+                        {misekinOrphans.length > 0 && (
+                          <div className="mb-3 rounded border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200">
+                            <div className="font-bold">みせ勤に打刻はあるが、キャストマスタに結びつかない人がいます</div>
+                            基本給・通勤手当に入っていません。みせ勤の「社員コード」にキャストコード（C0006 等）を入れてください：
+                            {misekinOrphans.map(o => `${o.staffName}（社員コード ${o.employeeCode ?? "未設定"}・${Math.floor(o.minutes / 60)}時間${o.minutes % 60}分）`).join("、")}
                           </div>
                         )}
                         {remodriOrphans.length > 0 && (

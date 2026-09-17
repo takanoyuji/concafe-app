@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { calculateSalary, calculateSalaryFromRows, halfPeriodRange, CsvFormatError, type CastInput } from "@/lib/salary";
 import { buildSalesInput, assertPeriodComplete, AirRegiPeriodError } from "@/lib/airregiSales";
 import { fetchRemodriSalesByCast, attributeByPrimaryStore, isRemodriConfigured, RemodriError, type RemodriCastSales } from "@/lib/remodri";
+import { fetchMisekinAttendance, buildWagesFromAttendance, isMisekinConfigured, MisekinError, type MisekinWages } from "@/lib/misekin";
 import { getRanksForPeriod } from "@/lib/rank";
 
 function storePrefix(storeName: string): "tokyo" | "osaka" | "nagoya" | null {
@@ -28,6 +29,9 @@ export async function POST(req: Request) {
   // 62日より前の期間を計算し直すときに使う。
   // ⚠️ "api" のときは salesCsv が来ていても見ない。CSVを使いたいなら source を明示すること
   const source = (formData.get("source") as string | null) === "csv" ? "csv" : "api";
+  // 人件費の出どころ。既定はエアシフトの人件費CSV。"misekin" は みせ勤 API から作る
+  // （時給・交通費が みせ勤に登録されていることが前提。無ければ lib/misekin.ts が止める）
+  const wageSource = (formData.get("wageSource") as string | null) === "misekin" ? "misekin" : "csv";
   // 期間パラメータ（任意）
   const yearStr  = formData.get("year")  as string | null;
   const monthStr = formData.get("month") as string | null;
@@ -35,8 +39,11 @@ export async function POST(req: Request) {
   // 期間は remodri の取得に必ず使う。DBに保存するかどうかは save で明示的に受け取る
   const save     = formData.get("save") === "1";
 
-  if (!store || !wageFile) {
+  if (!store || (wageSource === "csv" && !wageFile)) {
     return NextResponse.json({ error: "store と wageCsv は必須です" }, { status: 400 });
+  }
+  if (wageSource === "misekin" && !isMisekinConfigured()) {
+    return NextResponse.json({ error: "みせ勤と連携する設定（MISEKIN_API_URL / MISEKIN_API_KEY）がありません" }, { status: 400 });
   }
   if (source === "csv" && !salesFile) {
     return NextResponse.json({ error: "salesCsv は必須です" }, { status: 400 });
@@ -107,10 +114,36 @@ export async function POST(req: Request) {
     }
   }
 
-  // 遠隔のみのキャスト（その店舗のエアレジ名が無い人）も対象に含める
+  // --- みせ勤（勤怠）の取り込み ---
+  // 人件費CSVの代わり。打刻ごとの 実労働分×時給 と交通費をキャストコード別にまとめる
+  let misekinWages: MisekinWages | null = null;
+  if (wageSource === "misekin") {
+    if (!year || !month) {
+      return NextResponse.json({ error: "みせ勤から計算するには、年・月の指定が必要です" }, { status: 400 });
+    }
+    const { from, to } = halfPeriodRange(year, month, half ?? 0);
+    try {
+      const rows = await fetchMisekinAttendance(prefix, from, to);
+      misekinWages = buildWagesFromAttendance(rows, new Set(masters.map(m => m.castCode)));
+      if (misekinWages.count === 0) {
+        return NextResponse.json(
+          { error: `みせ勤に ${store} の ${from}〜${to} の勤怠がありません。期間と店舗を確認してください` },
+          { status: 400 }
+        );
+      }
+    } catch (e) {
+      if (e instanceof MisekinError) {
+        return NextResponse.json({ error: e.message }, { status: e.status });
+      }
+      throw e;
+    }
+  }
+
+  // 遠隔のみのキャスト（その店舗のエアレジ名が無い人）も対象に含める。みせ勤に打刻がある人も同様
   const hasRemodri = new Set(remodriRows.map(r => r.castCode));
+  const hasMisekin = new Set(misekinWages?.byCastCode.keys() ?? []);
   const casts: CastInput[] = masters
-    .filter(m => m[regiField] || m[shiftField] || hasRemodri.has(m.castCode))
+    .filter(m => m[regiField] || m[shiftField] || hasRemodri.has(m.castCode) || hasMisekin.has(m.castCode))
     .map(m => {
       const effectiveRank = monthlyRankMap?.get(m.id) ?? m.rank;
       return {
@@ -122,9 +155,10 @@ export async function POST(req: Request) {
         exemptFromCommuteRule: false,
       };
     })
-    .filter(c => c.castName || c.airShiftName);
+    .filter(c => c.castName || c.airShiftName || hasMisekin.has(c.castCode));
 
-  const wageBuf = await wageFile.arrayBuffer();
+  // 人件費の入力。CSV か みせ勤 のどちらか
+  const wageBuf: ArrayBuffer | MisekinWages = misekinWages ?? (await wageFile!.arrayBuffer());
 
   // 形式や取り込みが想定と違うときは計算せずに止める（0のまま保存させない）
   let summary;
@@ -196,8 +230,8 @@ export async function POST(req: Request) {
         },
       },
     });
-    return NextResponse.json({ summary, periodId: period.id, remodriOrphans, source });
+    return NextResponse.json({ summary, periodId: period.id, remodriOrphans, source, wageSource, misekinOrphans: misekinWages?.orphans ?? [] });
   }
 
-  return NextResponse.json({ summary, remodriOrphans, source });
+  return NextResponse.json({ summary, remodriOrphans, source, wageSource, misekinOrphans: misekinWages?.orphans ?? [] });
 }

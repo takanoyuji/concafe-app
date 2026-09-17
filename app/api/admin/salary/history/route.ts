@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isMisekinConfigured } from "@/lib/misekin";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -13,7 +14,8 @@ export async function GET() {
     include: { summaryRecord: true },
     orderBy: [{ year: "desc" }, { month: "desc" }, { half: "desc" }],
   });
-  return NextResponse.json({ periods });
+  // 人件費を みせ勤 から取れる設定になっているか。画面はこれを見て選択肢を出す
+  return NextResponse.json({ periods, misekinConfigured: isMisekinConfigured() });
 }
 
 // DELETE /api/admin/salary/history?id=xxx

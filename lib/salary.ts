@@ -1,4 +1,5 @@
 import type { RemodriCastSales } from "@/lib/remodri";
+import type { MisekinWages, WageEntry } from "@/lib/misekin";
 
 export interface CastInput {
   castCode: string;      // 不変コード。remodri の売上と突き合わせる
@@ -238,7 +239,7 @@ export function parseSalesCsv(salesBuf: ArrayBuffer): SalesRow[] {
  */
 export function calculateSalary(
   salesBuf: ArrayBuffer,
-  wageBuf: ArrayBuffer,
+  wageBuf: ArrayBuffer | MisekinWages,
   casts: CastInput[],
   /** remodri のキャスト別売上。移行前の期間は空配列（＝従来どおりの計算になる） */
   remodriRows: RemodriCastSales[] = []
@@ -254,7 +255,8 @@ export function calculateSalary(
  */
 export function calculateSalaryFromRows(
   sales: SalesRow[],
-  wageBuf: ArrayBuffer,
+  /** エアシフトの人件費CSV、または みせ勤から作ったキャストコード別の人件費 */
+  wageInput: ArrayBuffer | MisekinWages,
   casts: CastInput[],
   /** remodri のキャスト別売上。移行前の期間は空配列（＝従来どおりの計算になる） */
   remodriRows: RemodriCastSales[] = [],
@@ -263,28 +265,36 @@ export function calculateSalaryFromRows(
     orderDiscount?: number;
   } = {}
 ): SalarySummary {
-  const wageRaw = parseCSV(decodeCsv(wageBuf));
-  assertColumns(wageRaw, WAGE_REQUIRED, "人件費CSV");
+  // --- 人件費 ---
+  // CSV はエアシフト氏名で、みせ勤はキャストコードで引く。鍵が違うだけで中身は同じ形
+  const wageMap = new Map<string, WageEntry>();
+  const isMisekin = !(wageInput instanceof ArrayBuffer);
+  if (isMisekin) {
+    for (const [code, e] of wageInput.byCastCode) wageMap.set(code, e);
+  } else {
+    const wageRaw = parseCSV(decodeCsv(wageInput));
+    assertColumns(wageRaw, WAGE_REQUIRED, "人件費CSV");
 
-  // --- 勤怠CSV 数値変換 ---
-  const wages: WageRow[] = wageRaw.map(r => ({
-    氏名: r["氏名"] ?? "",
-    基本給: toNum(r["基本給"]),
-    通勤手当: toNum(r["通勤手当"]),
-    労働時間: r["労働時間"] ?? "",
-  }));
+    // --- 勤怠CSV 数値変換 ---
+    const wages: WageRow[] = wageRaw.map(r => ({
+      氏名: r["氏名"] ?? "",
+      基本給: toNum(r["基本給"]),
+      通勤手当: toNum(r["通勤手当"]),
+      労働時間: r["労働時間"] ?? "",
+    }));
 
-  // 氏名でgroupby sum
-  const wageMap = new Map<string, { basic: number; commute: number; laborTimes: string[] }>();
-  for (const w of wages) {
-    const key = w.氏名;
-    if (!key) continue;
-    const existing = wageMap.get(key) ?? { basic: 0, commute: 0, laborTimes: [] };
-    existing.basic += w.基本給;
-    existing.commute += w.通勤手当;
-    existing.laborTimes.push(w.労働時間);
-    wageMap.set(key, existing);
+    // 氏名でgroupby sum
+    for (const w of wages) {
+      const key = w.氏名;
+      if (!key) continue;
+      const existing = wageMap.get(key) ?? { basic: 0, commute: 0, laborTimes: [] };
+      existing.basic += w.基本給;
+      existing.commute += w.通勤手当;
+      existing.laborTimes.push(w.労働時間);
+      wageMap.set(key, existing);
+    }
   }
+  const wageKey = (c: CastInput) => (isMisekin ? c.castCode : c.airShiftName);
 
   // カテゴリー別 粗利・売上
   const grossMap = new Map<string, number>();
@@ -303,7 +313,7 @@ export function calculateSalaryFromRows(
   const COMMUTE_ZERO_RANKS = ["店長", "プラチナ", "ブラック", "ゴールド"];
 
   for (const c of casts) {
-    const wageEntry = wageMap.get(c.airShiftName) ?? { basic: 0, commute: 0, laborTimes: [] };
+    const wageEntry = wageMap.get(wageKey(c)) ?? { basic: 0, commute: 0, laborTimes: [] };
     const basicPay = wageEntry.basic;
     let commute = wageEntry.commute;
     // remodri は税込。エアレジの内税行と同じ扱いで、粗利から売上の消費税相当を引く
@@ -385,15 +395,17 @@ export function calculateSalaryFromRows(
     .filter(r => !knownCodes.has(r.castCode))
     .map(r => ({ castCode: r.castCode, name: r.name, amount: r.amount }));
 
-  // 総労働時間
+  // 総労働時間（人件費の入力に載っている人全員。マスタに無い人も含む＝従来どおり）
   let totalH = 0;
   let totalM = 0;
-  for (const w of wages) {
-    try {
-      const parts = w.労働時間.split(":");
-      totalH += parseInt(parts[0], 10);
-      totalM += parseInt(parts[1], 10);
-    } catch { /* skip */ }
+  for (const e of wageMap.values()) {
+    for (const t of e.laborTimes) {
+      const parts = t.split(":");
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (Number.isFinite(h)) totalH += h;
+      if (Number.isFinite(m)) totalM += m;
+    }
   }
   totalH += Math.floor(totalM / 60);
   totalM = totalM % 60;
