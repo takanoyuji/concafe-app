@@ -19,8 +19,8 @@
  * 名寄せは みせ勤の社員コード ＝ キャストマスタの castCode（2026-09-17 に28人分を投入済み）。
  * 表示名では突き合わせない（「月瀬透」vs「透」のような揺れがすでにある）。
  *
- * ⚠️ 黙って0にしない。退勤打刻が無い／ランクの時給が未設定（0）の人に打刻があれば、
- * 計算せずに止めて該当者を列挙する。0のまま計算が「成功」すると、基本給が抜けた給与がそれらしく出てしまう。
+ * ⚠️ 退勤打刻が無い打刻があれば計算せずに止めて列挙する。
+ * ランクの時給が0の人（内勤）は基本給0で計算するが、黙ってではなく zeroWageCasts で画面に出す。
  */
 
 /** みせ勤が落ちている・設定が違う・データが揃っていない、を呼び出し元に伝える。API側で400/502にする */
@@ -59,6 +59,8 @@ export interface MisekinWages {
   orphans: { staffName: string; employeeCode: string | null; minutes: number }[];
   /** 取り込んだ打刻数 */
   count: number;
+  /** ランクの時給が0の人（基本給0で計算した）。内勤は意図して0（2026-09-17 代表判断）。画面で見せる */
+  zeroWageCasts: { staffName: string; rank: string; minutes: number }[];
 }
 
 /** 環境変数が揃っているときだけ選べる。未設定なら画面に出さない */
@@ -139,14 +141,15 @@ export interface CastWageTerms {
  * 打刻をキャストコード別の人件費にまとめる。
  *
  * @param terms castCode → 時給・通勤手当日額。無い castCode は orphans に回す
- * @throws MisekinError 退勤打刻なし／時給未設定があるとき（計算させない）
+ * @throws MisekinError 退勤打刻なしがあるとき（計算させない）
  */
 export function buildWagesFromAttendance(
   rows: MisekinAttendance[],
   terms: Map<string, CastWageTerms>
 ): MisekinWages {
   const noClockOut: string[] = [];
-  const noWage = new Map<string, string>(); // 名前 → ランク
+  // 時給0のランクの人。止めずに基本給0で計算し、画面に出す（内勤は時給0が正。2026-09-17）
+  const zeroWage = new Map<string, { staffName: string; rank: string; minutes: number }>();
 
   for (const r of rows) {
     if (r.workMinutes == null) {
@@ -156,21 +159,15 @@ export function buildWagesFromAttendance(
     const code = (r.staffEmployeeCode ?? "").trim();
     const t = code ? terms.get(code) : undefined;
     if (t && r.workMinutes > 0 && !(t.hourlyWage > 0)) {
-      noWage.set(r.staffName, t.rank || "ランク未設定");
+      const z = zeroWage.get(code) ?? { staffName: r.staffName, rank: t.rank || "ランク未設定", minutes: 0 };
+      z.minutes += r.workMinutes;
+      zeroWage.set(code, z);
     }
   }
   if (noClockOut.length > 0) {
     throw new MisekinError(
       `退勤打刻が無い勤怠が ${noClockOut.length} 件あります: ${noClockOut.slice(0, 10).join("、")}` +
       `${noClockOut.length > 10 ? " ほか" : ""}。みせ勤で直してから計算してください`,
-      400
-    );
-  }
-  if (noWage.size > 0) {
-    const who = [...noWage].map(([n, rank]) => `${n}（${rank}）`).join("、");
-    throw new MisekinError(
-      `ランクの時給が設定されていない人に打刻があります: ${who}。` +
-      `「キャストランク管理」でそのランクの時給を入れてから計算してください（未設定のまま0円で計算はしません）`,
       400
     );
   }
@@ -204,5 +201,5 @@ export function buildWagesFromAttendance(
     e.commute = t.commuteDaily * (daysByCast.get(code)?.size ?? 0);
   }
 
-  return { kind: "misekin", byCastCode, orphans: [...orphanMap.values()], count: rows.length };
+  return { kind: "misekin", byCastCode, orphans: [...orphanMap.values()], count: rows.length, zeroWageCasts: [...zeroWage.values()] };
 }

@@ -15,6 +15,8 @@ export interface CastInput {
 export interface CastResult {
   castName: string;
   rank: string;
+  /** 労働時間（分）。人件費の入力（CSV / みせ勤）の労働時間を足したもの */
+  workMinutes: number;
   basicPay: number;
   commute: number;
   grossProfit: number;
@@ -66,6 +68,17 @@ export interface SalarySummary {
 }
 
 /** 給与期間（半月）を remodri に渡す YYYY-MM-DD の範囲に変換する。half=0 は月全体 */
+/** "H:MM" の配列を分に足す。壊れた値は飛ばす */
+export function sumHm(times: string[]): number {
+  let total = 0;
+  for (const t of times) {
+    const [h, m] = t.split(":").map(v => parseInt(v, 10));
+    if (Number.isFinite(h)) total += h * 60;
+    if (Number.isFinite(m)) total += m;
+  }
+  return total;
+}
+
 export function halfPeriodRange(year: number, month: number, half: number): { from: string; to: string } {
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -352,6 +365,7 @@ export function calculateSalaryFromRows(
     results.push({
       castName: c.castName,
       rank: c.rank,
+      workMinutes: sumHm(wageEntry.laborTimes),
       basicPay,
       commute,
       grossProfit,

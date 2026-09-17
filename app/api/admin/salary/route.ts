@@ -6,6 +6,7 @@ import { buildSalesInput, assertPeriodComplete, AirRegiPeriodError } from "@/lib
 import { fetchRemodriSalesByCast, attributeByPrimaryStore, isRemodriConfigured, RemodriError, type RemodriCastSales } from "@/lib/remodri";
 import { fetchMisekinAttendance, buildWagesFromAttendance, isMisekinConfigured, MisekinError, type MisekinWages } from "@/lib/misekin";
 import { getRanksForPeriod } from "@/lib/rank";
+import { checkMinimumWage, type MinWageInput } from "@/lib/minWage";
 
 function storePrefix(storeName: string): "tokyo" | "osaka" | "nagoya" | null {
   if (storeName.includes("池袋") || storeName === "東京") return "tokyo";
@@ -196,6 +197,37 @@ export async function POST(req: Request) {
     throw e;
   }
 
+  // --- 最低賃金の判定（月間トータル）---
+  // 前半/後半なら、もう片方の保存済みレコードを足して月間にする。無ければ pending
+  let minWage = null;
+  if (year && month && half != null) {
+    // 時給0のランク（内勤）はこのシートの外で払う前提なので判定から外す（2026-09-17）。外すのをやめるなら次の1行を消す
+    const outOfScope = (rank: string) => rankTerms.get(rank)?.hourlyWage === 0;
+    const current: MinWageInput[] = summary.casts
+      .filter(c => !outOfScope(c.rank))
+      .map(c => ({ castName: c.castName, salary: c.salary, commute: c.commute, workMinutes: c.workMinutes }));
+    let other: MinWageInput[] | null = null;
+    if (half === 1 || half === 2) {
+      const otherPeriod = await prisma.salaryPeriod.findUnique({
+        where: { storeName_year_month_half: { storeName: store, year, month, half: half === 1 ? 2 : 1 } },
+        include: { castRecords: true },
+      });
+      // 旧レコード（労働時間の記録なし）しか無いときは月間にできないので pending 扱い
+      if (otherPeriod && otherPeriod.castRecords.some(r => r.workMinutes > 0)) {
+        other = otherPeriod.castRecords
+          .filter(r => !outOfScope(r.rank))
+          .map(r => ({ castName: r.castName, salary: r.salary || r.payment, commute: r.commute, workMinutes: r.workMinutes }));
+      }
+    }
+    minWage = checkMinimumWage(prefix, year, month, half, current, other);
+  }
+  const extras = {
+    remodriOrphans, source, wageSource,
+    misekinOrphans: misekinWages?.orphans ?? [],
+    misekinZeroWage: misekinWages?.zeroWageCasts ?? [],
+    minWage,
+  };
+
   // --- DB 保管（保存が指示されたときだけ）---
   if (save && year && month && half) {
     // 同じ期間があれば削除→再作成（upsert相当）
@@ -220,6 +252,8 @@ export async function POST(req: Request) {
             payment:     c.payment,
             grossProfit: c.grossProfit,
             totalSales:  c.totalSales,
+            salary:      c.salary,
+            workMinutes: c.workMinutes,
           })),
         },
         summaryRecord: {
@@ -239,8 +273,8 @@ export async function POST(req: Request) {
         },
       },
     });
-    return NextResponse.json({ summary, periodId: period.id, remodriOrphans, source, wageSource, misekinOrphans: misekinWages?.orphans ?? [] });
+    return NextResponse.json({ summary, periodId: period.id, ...extras });
   }
 
-  return NextResponse.json({ summary, remodriOrphans, source, wageSource, misekinOrphans: misekinWages?.orphans ?? [] });
+  return NextResponse.json({ summary, ...extras });
 }

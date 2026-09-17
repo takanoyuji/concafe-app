@@ -42,6 +42,7 @@ describe("みせ勤の打刻 → 人件費", () => {
     expect(e.commute).toBe(500 * 2);
     expect(e.laborTimes).toEqual(["6:30", "1:01", "0:30"]);
     expect(w.orphans).toEqual([]);
+    expect(w.zeroWageCasts).toEqual([]);
     expect(w.count).toBe(3);
   });
 
@@ -70,11 +71,14 @@ describe("みせ勤の打刻 → 人件費", () => {
     ]);
   });
 
-  it("ランクの時給が未設定（0）の人に打刻があれば計算せずに止め、名前とランクを列挙する", () => {
-    expect(() => buildWagesFromAttendance([
+  it("ランクの時給が0の人（内勤）は止めずに基本給0で計算し、zeroWageCasts に出す", () => {
+    const w = buildWagesFromAttendance([
       att({}),
-      att({ staffId: "s2", staffName: "やっぴー", staffEmployeeCode: "C0025", workMinutes: 60 }),
-    ], terms({ C0025: { rank: "内勤", hourlyWage: 0 } }))).toThrow(/時給が設定されていない.*やっぴー（内勤）/);
+      att({ staffId: "s2", staffName: "やっぴー", staffEmployeeCode: "C0025", workMinutes: 60, businessDate: "2026-09-01" }),
+      att({ staffId: "s2", staffName: "やっぴー", staffEmployeeCode: "C0025", workMinutes: 30, businessDate: "2026-09-02" }),
+    ], terms({ C0025: { rank: "内勤", hourlyWage: 0, commuteDaily: 360 } }));
+    expect(w.byCastCode.get("C0025")).toEqual({ basic: 0, commute: 720, laborTimes: ["1:00", "0:30"] });
+    expect(w.zeroWageCasts).toEqual([{ staffName: "やっぴー", rank: "内勤", minutes: 90 }]);
   });
 
   it("退勤打刻が無い勤怠があれば止める", () => {

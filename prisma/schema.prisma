@@ -158,6 +158,10 @@ model SalaryCastRecord {
   payment     Float  @default(0)
   grossProfit Float  @default(0)
   totalSales  Float  @default(0)
+  /// 給与（100円丸め前）。最低賃金の判定は これ − 通勤手当 を労働時間で割る
+  salary      Float  @default(0)
+  /// 労働時間（分）。0 は「記録なし」（2026-09-17 より前のレコード）で、最低賃金の判定から外す
+  workMinutes Int    @default(0)
 
   period SalaryPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
 }

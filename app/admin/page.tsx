@@ -11,7 +11,7 @@ interface MenuItem { id: string; imageUrl: string; alt: string; order: number }
 interface ResetLog { id: string; userId: string | null; email: string | null; amount: number; idempotencyKey: string | null; createdAt: string }
 interface CastRank { id: string; name: string; backRate: number; order: number; hourlyWage: number; commutePaid: boolean }
 interface CastMaster { id: string; castCode: string; name: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; commuteDaily: number; }
-interface CastResult { castName: string; rank: string; basicPay: number; commute: number; grossProfit: number; totalSales: number; remoteSales?: number; remoteGrossProfit?: number; back: number; salary: number; payment: number }
+interface CastResult { castName: string; rank: string; workMinutes?: number; basicPay: number; commute: number; grossProfit: number; totalSales: number; remoteSales?: number; remoteGrossProfit?: number; back: number; salary: number; payment: number }
 interface SalarySummary { casts: CastResult[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; purchases: number; castPay: number; laborCost: number; contributionProfit: number; workHours: string;
   // 遠隔売上の内訳。エアレジ側と remodri 側の両方に金額があれば二重計上を疑う
   airRegiRemoteSales?: number; remodriSales?: number; remodriGrossProfit?: number;
@@ -90,6 +90,10 @@ export default function AdminPage() {
   const [misekinConfigured, setMisekinConfigured] = useState(false);
   // みせ勤に打刻はあるが、社員コードがキャストマスタに無い人（計算から外れている）
   const [misekinOrphans, setMisekinOrphans] = useState<{ staffName: string; employeeCode: string | null; minutes: number }[]>([]);
+  // ランクの時給が0で基本給0になった人（内勤は意図どおり）。黙って0にしないために出す
+  const [misekinZeroWage, setMisekinZeroWage] = useState<{ staffName: string; rank: string; minutes: number }[]>([]);
+  // 最低賃金の月間判定。計算時と「DBから読込」時にサーバーが返す
+  const [minWage, setMinWage] = useState<{ status: "checked" | "pending"; pref: string; amount: number; basis: string; warnings: { castName: string; workMinutes: number; wage: number; hourly: number }[] } | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [salarySummary, setSalarySummary] = useState<SalarySummary | null>(null);
   // 計算が止まった理由。flash はページ最上部に3秒しか出ず、給与タブまでスクロールしていると
@@ -423,6 +427,8 @@ export default function AdminPage() {
         setSalarySummary(d.summary);
         setRemodriOrphans(d.remodriOrphans ?? []);
         setMisekinOrphans(d.misekinOrphans ?? []);
+        setMisekinZeroWage(d.misekinZeroWage ?? []);
+        setMinWage(d.minWage ?? null);
         if (saveToDB && d.periodId) { flash("計算完了・DB保存しました"); fetchAll(); }
       } else {
         const reason = d?.error ?? `サーバーエラー（HTTP ${res.status}）。時間をおいて再度お試しください`;
@@ -474,6 +480,8 @@ export default function AdminPage() {
         const d = await res.json();
         if (!res.ok) { flash(d.error ?? "読込エラー", true); return; }
         periods.push(d.period);
+        setMinWage(d.minWage ?? null);
+        setMisekinZeroWage([]);
       }
       // PeriodDetail を SalarySummary 形式に変換
       const castMap = new Map<string, CastResult>();
@@ -1739,6 +1747,31 @@ export default function AdminPage() {
                             remodri（{fmt(s.remodriSales ?? 0)}）の両方に金額があります。
                             2026-08-16 以降の遠隔は remodri に一本化されている想定です。
                             エアレジ側にも遠隔が入力されていないか確認してください。
+                          </div>
+                        )}
+                        {minWage && minWage.status === "checked" && minWage.warnings.length > 0 && (
+                          <div className="mb-3 rounded border border-neon-pink/50 bg-neon-pink/10 p-3 text-xs text-neon-pink" data-testid="min-wage-warning">
+                            <div className="font-bold">⚠ 最低賃金（{minWage.pref} {minWage.amount.toLocaleString()}円）を月間トータルで下回っています — {minWage.basis}</div>
+                            <div className="text-white/60 mt-1">通勤手当を除いた給与 ÷ 労働時間。バックを含めても届いていない人です。差額の補填を検討してください。</div>
+                            <ul className="mt-1 space-y-0.5">
+                              {minWage.warnings.map(w => (
+                                <li key={w.castName}>
+                                  <span className="font-bold">{w.castName}</span>：{Math.floor(w.workMinutes / 60)}時間{w.workMinutes % 60}分で {w.wage.toLocaleString()}円 → 時間あたり <span className="font-bold">{w.hourly.toLocaleString()}円</span>（不足 {(minWage.amount - w.hourly).toLocaleString()}円/時・約 {Math.ceil((minWage.amount - w.hourly) * w.workMinutes / 60).toLocaleString()}円）
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {minWage && minWage.status === "pending" && (
+                          <div className="mb-3 text-xs text-white/40">最低賃金の判定: {minWage.basis}（{minWage.pref} {minWage.amount.toLocaleString()}円）</div>
+                        )}
+                        {minWage && minWage.status === "checked" && minWage.warnings.length === 0 && (
+                          <div className="mb-3 text-xs text-white/40">最低賃金（{minWage.pref} {minWage.amount.toLocaleString()}円）: {minWage.basis}で全員クリア</div>
+                        )}
+                        {misekinZeroWage.length > 0 && (
+                          <div className="mb-3 rounded border border-white/20 bg-white/5 p-3 text-xs text-white/60">
+                            <div className="font-bold text-white/80">ランクの時給が0のため基本給0で計算した人（内勤は想定どおり）</div>
+                            {misekinZeroWage.map(z => `${z.staffName}（${z.rank}・${Math.floor(z.minutes / 60)}時間${z.minutes % 60}分）`).join("、")}
                           </div>
                         )}
                         {misekinOrphans.length > 0 && (
