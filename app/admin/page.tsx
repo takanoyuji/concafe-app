@@ -9,8 +9,8 @@ interface Title { id: string; name: string; threshold: number; order: number }
 interface Customer { id: string; email: string; emailVerified: boolean; birthdate: string | null; ageVerified: boolean; balance: number; createdAt: string; name: string | null; favoriteCast1Name: string | null; favoriteCast2Name: string | null }
 interface MenuItem { id: string; imageUrl: string; alt: string; order: number }
 interface ResetLog { id: string; userId: string | null; email: string | null; amount: number; idempotencyKey: string | null; createdAt: string }
-interface CastRank { id: string; name: string; backRate: number; order: number }
-interface CastMaster { id: string; castCode: string; name: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; }
+interface CastRank { id: string; name: string; backRate: number; order: number; hourlyWage: number; commutePaid: boolean }
+interface CastMaster { id: string; castCode: string; name: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; commuteDaily: number; }
 interface CastResult { castName: string; rank: string; basicPay: number; commute: number; grossProfit: number; totalSales: number; remoteSales?: number; remoteGrossProfit?: number; back: number; salary: number; payment: number }
 interface SalarySummary { casts: CastResult[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; purchases: number; castPay: number; laborCost: number; contributionProfit: number; workHours: string;
   // 遠隔売上の内訳。エアレジ側と remodri 側の両方に金額があれば二重計上を疑う
@@ -41,7 +41,7 @@ type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary";
 
 const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, isPublished: true, retired: false, twitterUrl: "", instagramUrl: "", tiktokUrl: "", airShiftName: "", rank: "", exemptFromCommuteRule: false };
 const MENU_EMPTY = { imageUrl: "", alt: "", order: 0 };
-const RANK_EMPTY = { name: "", backRate: 0, order: 0 };
+const RANK_EMPTY = { name: "", backRate: 0, order: 0, hourlyWage: 0, commutePaid: true };
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("cast");
@@ -587,8 +587,11 @@ export default function AdminPage() {
         name: r["ランク名"] || r["ランク"] || "",
         backRate: (() => { const v = Number(r["バック率"] ?? "0"); return v > 1 ? v / 100 : v; })(),
         order: i,
+        // 列が無ければ undefined → サーバーが同名ランクの現在値を引き継ぐ
+        hourlyWage: r["時給"] === undefined || r["時給"] === "" ? undefined : Number(r["時給"]),
+        commutePaid: r["交通費"] === undefined || r["交通費"] === "" ? undefined : ["○", "1", "true", "TRUE", "はい", "○"].includes(r["交通費"].trim()),
       }));
-    if (ranks.length === 0) { flash("CSVにデータがありません（ヘッダー: ランク,バック率）", true); return; }
+    if (ranks.length === 0) { flash("CSVにデータがありません（ヘッダー: ランク,バック率,時給,交通費）", true); return; }
     const res = await fetch("/api/admin/cast-ranks/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -611,7 +614,7 @@ export default function AdminPage() {
   };
 
   const downloadRanksCsv = () => {
-    const rows = [["ランク", "バック率"], ...castRanks.map(r => [r.name, String((r.backRate * 100).toFixed(0))])];
+    const rows = [["ランク", "バック率", "時給", "交通費"], ...castRanks.map(r => [r.name, String((r.backRate * 100).toFixed(0)), String(r.hourlyWage), r.commutePaid ? "○" : "×"])];
     downloadCsv("キャストランク.csv", rows);
   };
 
@@ -631,6 +634,7 @@ export default function AdminPage() {
       osakaAirShift:  r["大阪エアシフト"],
       nagoyaAirRegi:  r["名古屋エアレジ"],
       nagoyaAirShift: r["名古屋エアシフト"],
+      commuteDaily:   r["通勤日額"],
     })).filter(m => [m.castCode, m.name, m.tokyoAirRegi, m.osakaAirRegi, m.nagoyaAirRegi].some(v => v));
     if (mapped.length === 0) { flash("CSVにデータがありません（ヘッダー: キャストコード,HP名,東京エアレジ,…）", true); return; }
     const res = await fetch("/api/admin/cast-master/bulk", {
@@ -650,8 +654,8 @@ export default function AdminPage() {
   };
 
   const downloadCastMasterNewCsv = () => {
-    const header = ["キャストコード", "HP名", "東京エアレジ", "東京エアシフト", "大阪エアレジ", "大阪エアシフト", "名古屋エアレジ", "名古屋エアシフト", "ランク", "退職"];
-    const rows = [header, ...castMasters.map(m => [m.castCode, m.name, m.tokyoAirRegi, m.tokyoAirShift, m.osakaAirRegi, m.osakaAirShift, m.nagoyaAirRegi, m.nagoyaAirShift, m.rank, m.retired ? "1" : ""])];
+    const header = ["キャストコード", "HP名", "東京エアレジ", "東京エアシフト", "大阪エアレジ", "大阪エアシフト", "名古屋エアレジ", "名古屋エアシフト", "ランク", "退職", "通勤日額"];
+    const rows = [header, ...castMasters.map(m => [m.castCode, m.name, m.tokyoAirRegi, m.tokyoAirShift, m.osakaAirRegi, m.osakaAirShift, m.nagoyaAirRegi, m.nagoyaAirShift, m.rank, m.retired ? "1" : "", String(m.commuteDaily ?? 0)])];
     downloadCsv("キャストマスタ.csv", rows);
   };
 
@@ -1056,7 +1060,7 @@ export default function AdminPage() {
                   </div>
                   {/* マスタ一覧 (inline edit) */}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs min-w-[1030px]">
+                    <table className="w-full text-xs min-w-[1110px]">
                       <thead>
                         <tr className="text-white/50 border-b border-white/10">
                           <th className="text-left pb-2 pr-2">コード</th>
@@ -1068,6 +1072,7 @@ export default function AdminPage() {
                           <th className="text-left pb-2 pr-2">名古屋<br/>エアレジ</th>
                           <th className="text-left pb-2 pr-2">名古屋<br/>エアシフト</th>
                           <th className="text-left pb-2 pr-2">ランク</th>
+                          <th className="text-left pb-2 pr-2">通勤<br/>日額</th>
                           <th className="text-left pb-2 pr-2">退職</th>
                           <th className="pb-2"></th>
                         </tr>
@@ -1103,6 +1108,13 @@ export default function AdminPage() {
                                   <option value="">--</option>
                                   {castRanks.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                                 </select>
+                              </td>
+                              <td className="py-1 pr-2">
+                                {/* 通勤手当の日額（円）。みせ勤の出勤日数と掛ける。交通費×のランクは計算側で0になる */}
+                                <input type="number" className="input-field py-0.5 px-1 text-xs w-16" min={0}
+                                  value={String(e.commuteDaily ?? 0)}
+                                  onChange={ev => setMasterEdits(p => ({ ...p, [m.id]: { ...(p[m.id] ?? mWithMonthlyRank), commuteDaily: Number(ev.target.value) } }))}
+                                />
                               </td>
                               <td className="py-1 pr-2">
                                 <input type="checkbox"
@@ -1147,7 +1159,7 @@ export default function AdminPage() {
                   {/* CSV インポート / ダウンロード */}
                   <div className="glass-dark p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-white/50">CSVインポート（ヘッダー: <code>ランク,バック率</code>、バック率は%で入力）</p>
+                      <p className="text-xs text-white/50">CSVインポート（ヘッダー: <code>ランク,バック率,時給,交通費</code>、バック率は%、交通費は○/×。時給・交通費の列が無ければ今の値を引き継ぐ）</p>
                       <button onClick={downloadRanksCsv} className="text-xs text-neon-violet hover:text-neon-purple whitespace-nowrap">⬇ CSVダウンロード</button>
                     </div>
                     <div className="flex gap-2 items-center">
@@ -1175,6 +1187,18 @@ export default function AdminPage() {
                         <label className="text-xs text-white/60 block mb-1">表示順</label>
                         <input type="number" className="input-field" value={rankForm.order} onChange={e => setRankForm(p => ({ ...p, order: Number(e.target.value) }))} />
                       </div>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">時給（円）</label>
+                        <input type="number" className="input-field" value={rankForm.hourlyWage} onChange={e => setRankForm(p => ({ ...p, hourlyWage: Number(e.target.value) }))} min={0} step={10} placeholder="例: 1200" />
+                        <p className="text-[10px] text-white/40 mt-1">みせ勤から人件費を作るときの 基本給 = 労働時間×時給。0 だと未設定として計算を止める</p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">交通費</label>
+                        <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer mt-2">
+                          <input type="checkbox" className="accent-neon-violet" checked={rankForm.commutePaid} onChange={e => setRankForm(p => ({ ...p, commutePaid: e.target.checked }))} />
+                          支払う（×のランクは通勤手当を0にする）
+                        </label>
+                      </div>
                     </div>
                     <div className="flex gap-3">
                       <button onClick={saveRank} className="btn-primary text-sm">{editingRank ? "更新" : "追加"}</button>
@@ -1187,9 +1211,9 @@ export default function AdminPage() {
                       <div key={r.id} className="glass-dark p-3 flex items-center gap-4">
                         <div className="flex-1">
                           <span className="font-bold text-white">{r.name}</span>
-                          <span className="text-xs text-white/40 ml-3">バック率: {(r.backRate * 100).toFixed(0)}%　順番: {r.order}</span>
+                          <span className="text-xs text-white/40 ml-3">バック率: {(r.backRate * 100).toFixed(0)}%　時給: {r.hourlyWage > 0 ? `${r.hourlyWage.toLocaleString()}円` : <span className="text-amber-300">未設定</span>}　交通費: {r.commutePaid ? "○" : "×"}　順番: {r.order}</span>
                         </div>
-                        <button onClick={() => { setRankForm({ name: r.name, backRate: r.backRate, order: r.order }); setEditingRank(r.id); }} className="text-neon-violet text-sm hover:text-neon-purple">編集</button>
+                        <button onClick={() => { setRankForm({ name: r.name, backRate: r.backRate, order: r.order, hourlyWage: r.hourlyWage ?? 0, commutePaid: r.commutePaid ?? true }); setEditingRank(r.id); }} className="text-neon-violet text-sm hover:text-neon-purple">編集</button>
                         <button onClick={() => deleteRank(r.id)} className="text-neon-pink text-sm hover:text-red-400">削除</button>
                       </div>
                     ))}

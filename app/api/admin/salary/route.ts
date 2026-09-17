@@ -70,6 +70,9 @@ export async function POST(req: Request) {
   ]);
 
   const rankMap = new Map<string, number>(castRanks.map(r => [r.name, r.backRate] as [string, number]));
+  // ランク制度表（時給・交通費○/×）。期間に効いているランクで引く
+  const rankTerms = new Map(castRanks.map(r => [r.name, { hourlyWage: r.hourlyWage, commutePaid: r.commutePaid }] as const));
+  const effectiveRankOf = (m: (typeof masters)[number]) => monthlyRankMap?.get(m.id) ?? m.rank;
   const hpNameMap = new Map<string, string>(masters.map(m => {
     const regi = String(m[`${prefix}AirRegi` as keyof typeof m] || "");
     return [regi, m.name] as [string, string];
@@ -115,7 +118,7 @@ export async function POST(req: Request) {
   }
 
   // --- みせ勤（勤怠）の取り込み ---
-  // 人件費CSVの代わり。打刻ごとの 実労働分×時給 と交通費をキャストコード別にまとめる
+  // 人件費CSVの代わり。打刻ごとの 実労働分×ランクの時給 と、マスタの日額×出勤日数 をキャストコード別にまとめる
   let misekinWages: MisekinWages | null = null;
   if (wageSource === "misekin") {
     if (!year || !month) {
@@ -124,7 +127,11 @@ export async function POST(req: Request) {
     const { from, to } = halfPeriodRange(year, month, half ?? 0);
     try {
       const rows = await fetchMisekinAttendance(prefix, from, to);
-      misekinWages = buildWagesFromAttendance(rows, new Set(masters.map(m => m.castCode)));
+      const terms = new Map(masters.map(m => {
+        const rank = effectiveRankOf(m);
+        return [m.castCode, { rank, hourlyWage: rankTerms.get(rank)?.hourlyWage ?? 0, commuteDaily: m.commuteDaily }] as const;
+      }));
+      misekinWages = buildWagesFromAttendance(rows, terms);
       if (misekinWages.count === 0) {
         return NextResponse.json(
           { error: `みせ勤に ${store} の ${from}〜${to} の勤怠がありません。期間と店舗を確認してください` },
@@ -145,7 +152,7 @@ export async function POST(req: Request) {
   const casts: CastInput[] = masters
     .filter(m => m[regiField] || m[shiftField] || hasRemodri.has(m.castCode) || hasMisekin.has(m.castCode))
     .map(m => {
-      const effectiveRank = monthlyRankMap?.get(m.id) ?? m.rank;
+      const effectiveRank = effectiveRankOf(m);
       return {
         castCode:              m.castCode,
         castName:              String(m[regiField]  || ""),
@@ -153,6 +160,8 @@ export async function POST(req: Request) {
         rank:                  effectiveRank,
         backRate:              rankMap.get(effectiveRank) ?? 0,
         exemptFromCommuteRule: false,
+        // ランク表に無いランク名なら undefined → 計算側の従来リストで判定
+        commutePaid:           rankTerms.get(effectiveRank)?.commutePaid,
       };
     })
     .filter(c => c.castName || c.airShiftName || hasMisekin.has(c.castCode));

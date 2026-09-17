@@ -8,6 +8,8 @@ export interface CastInput {
   rank: string;          // ランク名
   backRate: number;      // バック率 (0〜1)
   exemptFromCommuteRule: boolean;
+  /** ランク制度の交通費 ○/×（CastRank.commutePaid）。省略時は従来の固定リスト（ゴールド以上は×）で判定 */
+  commutePaid?: boolean;
 }
 
 export interface CastResult {
@@ -328,8 +330,9 @@ export function calculateSalaryFromRows(
 
     const back = grossProfit * c.backRate;
 
-    // ゴールド以上かつ非除外者は通勤手当=0
-    if (COMMUTE_ZERO_RANKS.includes(c.rank) && !c.exemptFromCommuteRule) {
+    // 交通費を払わないランク（制度表の×。ランク表に無ければ従来どおりゴールド以上）かつ非除外者は通勤手当=0
+    const commuteZero = c.commutePaid != null ? !c.commutePaid : COMMUTE_ZERO_RANKS.includes(c.rank);
+    if (commuteZero && !c.exemptFromCommuteRule) {
       commute = 0;
       hourlyTotal = basicPay; // 通勤手当を除いて再計算
     }

@@ -26,6 +26,8 @@ export async function PUT(
     osakaAirShift:  body.osakaAirShift,
     nagoyaAirRegi:  body.nagoyaAirRegi,
     nagoyaAirShift: body.nagoyaAirShift,
+    // 通勤手当の日額（円）。みせ勤から人件費を作るときに 日額×出勤日数
+    commuteDaily:   body.commuteDaily == null || body.commuteDaily === "" ? undefined : Math.max(0, Math.round(Number(body.commuteDaily))),
   };
 
   const master = await prisma.cast.update({ where: { id }, data });

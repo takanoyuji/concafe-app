@@ -84,6 +84,9 @@ model Cast {
   osakaAirShift         String  @default("")
   nagoyaAirRegi         String  @default("")
   nagoyaAirShift        String  @default("")
+  /// 通勤手当の日額（円）。みせ勤から人件費を作るとき 通勤手当 = これ × 出勤日数。
+  /// 交通費を払わないランク（CastRank.commutePaid=false）の人は計算側で0になるので、値は持っていてよい
+  commuteDaily   Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -186,6 +189,11 @@ model CastRank {
   name      String   @unique
   backRate  Float
   order     Int      @default(0)
+  /// ランク制度の時給（円）。みせ勤から人件費を作るときの 基本給 = 実労働分/60 × これ。
+  /// 0 は「未設定」扱いで、そのランクの人に打刻があると計算を止める（黙って0円にしない）
+  hourlyWage  Int     @default(0)
+  /// 交通費を支払うランクか（制度表の「交通費 ○/×」）。false なら通勤手当を0にする
+  commutePaid Boolean @default(true)
   createdAt DateTime @default(now())
 }
 

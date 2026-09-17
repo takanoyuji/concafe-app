@@ -3,20 +3,24 @@
  *
  * 給与計算の「基本給・通勤手当・労働時間」は、これまでエアシフトの
  * 「概算人件費シミュレーション」CSVを手でアップロードして取っていた。
- * みせ勤の attendance API は1打刻ごとに 実労働分・その日の時給・交通費 を返すので、
- * 同じ3項目をここで組み立てる（会計アプリ stagegate-accounting と同じ式）。
+ * みせ勤の attendance API は1打刻ごとに実労働分を返すので、そこから同じ3項目を組み立てる。
  *
- *   基本給   = Σ round(workMinutes / 60 × hourlyWage)   ※打刻ごとに丸める（エアシフトの日別と同じ）
- *   通勤手当 = Σ transportationAmount
+ *   基本給   = Σ round(workMinutes / 60 × ランクの時給)   ※打刻ごとに丸める（エアシフトの日別と同じ）
+ *   通勤手当 = キャストマスタの日額 × 出勤日数（打刻のあった営業日の数）
  *   労働時間 = Σ workMinutes
+ *
+ * 時給は **ランク制度表**（CastRank.hourlyWage）、通勤手当の日額は **キャストマスタ**（Cast.commuteDaily）から取る。
+ * みせ勤側の時給・交通費（hourlyWage / transportationAmount）は使わない（2026-09-17 の判断。
+ * 制度表を正にし、みせ勤に二重登録しない）。交通費を払わないランク（commutePaid=false）は
+ * 計算側（lib/salary.ts）で通勤手当を0にするので、ここでは日額×日数をそのまま出す。
  *
  * 深夜割増は見ない。エアシフトCSVの「基本給」列にも含まれていないので現行と同じ。
  *
  * 名寄せは みせ勤の社員コード ＝ キャストマスタの castCode（2026-09-17 に28人分を投入済み）。
  * 表示名では突き合わせない（「月瀬透」vs「透」のような揺れがすでにある）。
  *
- * ⚠️ 黙って0にしない。時給が未登録・退勤打刻が無い打刻があれば、計算せずに止めて該当者を列挙する。
- * 0のまま計算が「成功」すると、基本給が抜けた給与がそれらしく出てしまう。
+ * ⚠️ 黙って0にしない。退勤打刻が無い／ランクの時給が未設定（0）の人に打刻があれば、
+ * 計算せずに止めて該当者を列挙する。0のまま計算が「成功」すると、基本給が抜けた給与がそれらしく出てしまう。
  */
 
 /** みせ勤が落ちている・設定が違う・データが揃っていない、を呼び出し元に伝える。API側で400/502にする */
@@ -121,26 +125,38 @@ export function minutesToHm(min: number): string {
   return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
 }
 
+/** 打刻を人件費に変えるのに必要な、キャストごとの条件 */
+export interface CastWageTerms {
+  /** その期間に効いているランク名（表示用） */
+  rank: string;
+  /** ランク制度の時給（円）。0 は未設定 */
+  hourlyWage: number;
+  /** 通勤手当の日額（円）。キャストマスタ */
+  commuteDaily: number;
+}
+
 /**
  * 打刻をキャストコード別の人件費にまとめる。
  *
- * @param knownCastCodes キャストマスタにある castCode。無い人は orphans に回す
- * @throws MisekinError 退勤打刻なし／時給未登録があるとき（計算させない）
+ * @param terms castCode → 時給・通勤手当日額。無い castCode は orphans に回す
+ * @throws MisekinError 退勤打刻なし／時給未設定があるとき（計算させない）
  */
 export function buildWagesFromAttendance(
   rows: MisekinAttendance[],
-  knownCastCodes: Set<string>
+  terms: Map<string, CastWageTerms>
 ): MisekinWages {
   const noClockOut: string[] = [];
-  const noWage = new Set<string>();
+  const noWage = new Map<string, string>(); // 名前 → ランク
 
   for (const r of rows) {
     if (r.workMinutes == null) {
       noClockOut.push(`${r.businessDate} ${r.staffName}`);
       continue;
     }
-    if (r.workMinutes > 0 && r.hourlyWage == null) {
-      noWage.add(r.staffName);
+    const code = (r.staffEmployeeCode ?? "").trim();
+    const t = code ? terms.get(code) : undefined;
+    if (t && r.workMinutes > 0 && !(t.hourlyWage > 0)) {
+      noWage.set(r.staffName, t.rank || "ランク未設定");
     }
   }
   if (noClockOut.length > 0) {
@@ -151,29 +167,41 @@ export function buildWagesFromAttendance(
     );
   }
   if (noWage.size > 0) {
+    const who = [...noWage].map(([n, rank]) => `${n}（${rank}）`).join("、");
     throw new MisekinError(
-      `みせ勤に時給が登録されていない人がいます: ${[...noWage].join("、")}。` +
-      `みせ勤のスタッフ設定で時給を入れてから計算してください（未登録のまま0円で計算はしません）`,
+      `ランクの時給が設定されていない人に打刻があります: ${who}。` +
+      `「キャストランク管理」でそのランクの時給を入れてから計算してください（未設定のまま0円で計算はしません）`,
       400
     );
   }
 
   const byCastCode = new Map<string, WageEntry>();
+  const daysByCast = new Map<string, Set<string>>();
   const orphanMap = new Map<string, { staffName: string; employeeCode: string | null; minutes: number }>();
   for (const r of rows) {
     const minutes = r.workMinutes ?? 0;
     const code = (r.staffEmployeeCode ?? "").trim();
-    if (!code || !knownCastCodes.has(code)) {
+    const t = code ? terms.get(code) : undefined;
+    if (!t) {
       const o = orphanMap.get(r.staffId) ?? { staffName: r.staffName, employeeCode: code || null, minutes: 0 };
       o.minutes += minutes;
       orphanMap.set(r.staffId, o);
       continue;
     }
     const e = byCastCode.get(code) ?? { basic: 0, commute: 0, laborTimes: [] };
-    e.basic += Math.round((minutes / 60) * (r.hourlyWage ?? 0));
-    e.commute += r.transportationAmount ?? 0;
+    e.basic += Math.round((minutes / 60) * t.hourlyWage);
     e.laborTimes.push(minutesToHm(minutes));
     byCastCode.set(code, e);
+    // 出勤日数は営業日で数える（同じ日に2回打刻しても1日）。0分の打刻は出勤に数えない
+    if (minutes > 0) {
+      const d = daysByCast.get(code) ?? new Set<string>();
+      d.add(r.businessDate);
+      daysByCast.set(code, d);
+    }
+  }
+  for (const [code, e] of byCastCode) {
+    const t = terms.get(code)!;
+    e.commute = t.commuteDaily * (daysByCast.get(code)?.size ?? 0);
   }
 
   return { kind: "misekin", byCastCode, orphans: [...orphanMap.values()], count: rows.length };

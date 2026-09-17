@@ -25,6 +25,8 @@ interface Row {
   osakaAirShift?: string;
   nagoyaAirRegi?: string;
   nagoyaAirShift?: string;
+  /** 通勤手当の日額（円）。列が無ければ変更しない */
+  commuteDaily?: number | string;
 }
 
 /** 最初に見つかった重複値を返す。無ければ null */
@@ -107,6 +109,7 @@ export async function POST(req: Request) {
         osakaAirShift: trimmed(r.osakaAirShift),
         nagoyaAirRegi: trimmed(r.nagoyaAirRegi),
         nagoyaAirShift: trimmed(r.nagoyaAirShift),
+        commuteDaily: r.commuteDaily == null || r.commuteDaily === "" ? undefined : Math.max(0, Math.round(Number(r.commuteDaily))) || 0,
       };
 
       const match = code ? byCode.get(code) : name ? byName.get(name) : undefined;

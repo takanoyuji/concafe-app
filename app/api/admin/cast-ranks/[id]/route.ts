@@ -10,7 +10,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const { id } = await params;
   const body = await req.json();
-  const { name, backRate, order } = body;
+  const { name, backRate, order, hourlyWage, commutePaid } = body;
 
   const rank = await prisma.castRank.update({
     where: { id },
@@ -18,6 +18,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       ...(name != null && { name }),
       ...(backRate != null && { backRate: Number(backRate) }),
       ...(order != null && { order: Number(order) }),
+      ...(hourlyWage != null && { hourlyWage: Math.max(0, Math.round(Number(hourlyWage))) }),
+      ...(commutePaid != null && { commutePaid: Boolean(commutePaid) }),
     },
   });
   return NextResponse.json({ rank });

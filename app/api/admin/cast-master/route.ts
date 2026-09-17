@@ -30,6 +30,7 @@ export async function POST(req: Request) {
     osakaAirShift:  body.osakaAirShift  ?? "",
     nagoyaAirRegi:  body.nagoyaAirRegi  ?? "",
     nagoyaAirShift: body.nagoyaAirShift ?? "",
+    commuteDaily:   Math.max(0, Math.round(Number(body.commuteDaily ?? 0))) || 0,
   };
 
   const master = await prisma.$transaction(async tx => {
