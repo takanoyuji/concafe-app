@@ -457,6 +457,9 @@ model Reservation {
   source String @default("LINE")
 
   /// いたずら対策の連続申し込み判定にだけ使う。IPそのものは残さない
+
+  /// 店舗からお客様へのメッセージ（確定/お断りのときに添える。最新のもの）。メールとマイページに出す
+  staffMessage String @default("")
   ipHash String @default("")
 
   createdAt DateTime @default(now())
@@ -486,7 +489,10 @@ model ReservationEvent {
   /// 操作した管理者。お客様自身の申し込みは空
   actorId    String @default("")
   actorEmail String @default("")
+  /// 内部メモ（お客様には出さない）
   memo       String @default("")
+  /// お客様へのメッセージ（メールに載せたもの。履歴として残す）
+  message    String @default("")
 
   createdAt DateTime @default(now())
 

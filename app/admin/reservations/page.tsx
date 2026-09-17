@@ -26,6 +26,7 @@ interface Reservation {
   /// 通知先。手入力の分は空のことがある
   email: string;
   note: string;
+  staffMessage?: string;
   /// お客様の自己申告。照合はしていない
   purchaseId: string;
   /// BASEの注文IDらしい形かどうか。照合結果ではない
@@ -42,6 +43,7 @@ interface EventRow {
   toStatus: string;
   actorEmail: string;
   memo: string;
+  message?: string;
   createdAt: string;
 }
 
@@ -120,15 +122,26 @@ export default function ReservationLedgerPage() {
       .catch(() => setStores([]));
   }, []);
 
-  const changeStatus = async (id: string, next: ReservationStatus) => {
+  // 確定 / お断りは、お客様へのメッセージを添えられる（メールとマイページに載る）。
+  // ボタンを押すとメッセージ欄が開き、そこで送信する。他の状態変更は従来どおり即時
+  const [msgTarget, setMsgTarget] = useState<{ id: string; next: ReservationStatus } | null>(null);
+  const [message, setMessage] = useState("");
+
+  const requestChange = (id: string, next: ReservationStatus) => {
+    if (next === "CONFIRMED" || next === "DECLINED") { setMsgTarget({ id, next }); setMessage(""); return; }
+    void changeStatus(id, next, "");
+  };
+
+  const changeStatus = async (id: string, next: ReservationStatus, msg: string) => {
     const res = await fetch(`/api/admin/reservations/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next }),
+      body: JSON.stringify({ status: next, message: msg }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { flash(data.error ?? "変更できませんでした", true); return; }
-    flash(`「${STATUS_LABEL[next]}」にしました`);
+    flash(`「${STATUS_LABEL[next]}」にしました${msg.trim() ? "（メッセージ付き）" : ""}`);
+    setMsgTarget(null); setMessage("");
     fetchRows();
     if (openId === id) loadEvents(id);
   };
@@ -298,7 +311,12 @@ export default function ReservationLedgerPage() {
               openId={openId}
               events={events}
               onToggle={toggleDetail}
-              onChange={changeStatus}
+onChange={requestChange}
+              pending={msgTarget}
+              message={message}
+              onMessageChange={setMessage}
+              onSubmit={() => msgTarget && changeStatus(msgTarget.id, msgTarget.next, message)}
+              onCancelPending={() => setMsgTarget(null)}
             />
             <Section
               title={`対応済み ${others.length}件`}
@@ -307,7 +325,12 @@ export default function ReservationLedgerPage() {
               openId={openId}
               events={events}
               onToggle={toggleDetail}
-              onChange={changeStatus}
+onChange={requestChange}
+              pending={msgTarget}
+              message={message}
+              onMessageChange={setMessage}
+              onSubmit={() => msgTarget && changeStatus(msgTarget.id, msgTarget.next, message)}
+              onCancelPending={() => setMsgTarget(null)}
             />
           </>
         )}
@@ -325,6 +348,7 @@ export default function ReservationLedgerPage() {
 
 function Section({
   title, empty, rows, openId, events, onToggle, onChange,
+  pending, message, onMessageChange, onSubmit, onCancelPending,
 }: {
   title: string;
   empty: string;
@@ -333,6 +357,12 @@ function Section({
   events: EventRow[];
   onToggle: (id: string) => void;
   onChange: (id: string, next: ReservationStatus) => void;
+  /** 確定/お断りのメッセージ入力中の予約 */
+  pending: { id: string; next: ReservationStatus } | null;
+  message: string;
+  onMessageChange: (m: string) => void;
+  onSubmit: () => void;
+  onCancelPending: () => void;
 }) {
   return (
     <section className="space-y-2">
@@ -381,7 +411,30 @@ function Section({
 
             {r.note && <p className="mt-2 text-sm text-white/70 whitespace-pre-wrap">メモ: {r.note}</p>}
 
-            {ALLOWED_TRANSITIONS[r.status].length > 0 && (
+            {r.staffMessage && (
+              <p className="mt-2 text-xs text-neon-purple/90 whitespace-pre-wrap">お客様へ: {r.staffMessage}</p>
+            )}
+
+            {pending?.id === r.id ? (
+              <div className="mt-3 glass-dark p-3 space-y-2" data-testid="reservation-message-box">
+                <p className="text-xs text-white/70">
+                  「{STATUS_LABEL[pending.next]}」にします。お客様へのメッセージがあれば添えてください（任意・500文字まで）。
+                  {r.email ? "確定/お断りのメールとマイページに載ります。" : "この予約はメールアドレスが無いので、メッセージは届きません（LINEで伝えてください）。"}
+                </p>
+                <textarea
+                  value={message}
+                  onChange={e => onMessageChange(e.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  placeholder={pending.next === "DECLINED" ? "例: この日は満席のため承れませんでした。翌週の同じ時間でしたらご案内できます。" : "例: カウンター席でご用意しています。お待ちしております。"}
+                  className="input-field text-sm w-full"
+                />
+                <div className="flex gap-2">
+                  <button onClick={onSubmit} className="btn-primary text-xs px-4 py-1.5">{STATUS_LABEL[pending.next]}にする{message.trim() ? "（メッセージ付き）" : ""}</button>
+                  <button onClick={onCancelPending} className="btn-secondary text-xs px-4 py-1.5">やめる</button>
+                </div>
+              </div>
+            ) : ALLOWED_TRANSITIONS[r.status].length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {ALLOWED_TRANSITIONS[r.status].map(next => (
                   <button
@@ -408,6 +461,7 @@ function Section({
                       {STATUS_LABEL[e.toStatus as ReservationStatus]}
                       {e.actorEmail && ` / ${e.actorEmail}`}
                       {e.memo && ` / ${e.memo}`}
+                      {e.message && <span className="text-neon-purple/80"> / お客様へ: {e.message}</span>}
                     </p>
                   ))
                 )}

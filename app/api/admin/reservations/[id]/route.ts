@@ -63,10 +63,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     select: { email: true },
   });
 
+  // お客様へのメッセージ。確定/お断りのときに最新のものを予約に持ち、履歴にも残す
+  const message = parsed.data.message ?? "";
+  const notifies = to === "CONFIRMED" || to === "DECLINED";
   const updated = await prisma.$transaction(async tx => {
     const r = await tx.reservation.update({
       where: { id },
-      data: { status: to, lastActorId: session.userId },
+      data: { status: to, lastActorId: session.userId, ...(notifies ? { staffMessage: message } : {}) },
     });
     await tx.reservationEvent.create({
       data: {
@@ -76,6 +79,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         actorId: session.userId,
         actorEmail: user?.email ?? "",
         memo: parsed.data.memo ?? "",
+        message,
       },
     });
     return r;
@@ -91,6 +95,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       visitTime: current.visitTime,
       partySize: current.partySize,
       customerName: current.customerName,
+      message,
     };
     try {
       if (to === "CONFIRMED") await sendReservationConfirmedEmail(info);

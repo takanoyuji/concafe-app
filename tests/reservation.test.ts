@@ -9,9 +9,9 @@ const mail = vi.hoisted(() => ({
   fail: false,
 }));
 vi.mock("@/lib/email", () => {
-  const record = (kind: string) => async (r: { to: string; customerName: string }) => {
+  const record = (kind: string) => async (r: { to: string; customerName: string; message?: string }) => {
     if (mail.fail) throw new Error("mail down");
-    mail.sent.push({ kind, to: r.to, customerName: r.customerName });
+    mail.sent.push({ kind, to: r.to, customerName: r.customerName, message: r.message });
   };
   return {
     sendReservationReceivedEmail: record("received"),
@@ -280,6 +280,27 @@ describe("予約台帳（管理API）", () => {
 
     expect(mail.sent.map(m => m.kind)).toEqual(["confirmed", "declined"]);
     expect(mail.sent.every(m => m.to === "hoshino@example.com")).toBe(true);
+  });
+
+  it("お断り/確定にメッセージを添えると、メールに載り、予約と履歴に残る。他の遷移では予約のメッセージは変えない", async () => {
+    const r = await createPending();
+    session.current = { userId: adminId, role: "ADMIN" };
+    mail.sent = [];
+    const patch = (status: string, message?: string) =>
+      adminPATCH(
+        new Request("http://localhost", { method: "PATCH", body: JSON.stringify({ status, message }) }),
+        { params: Promise.resolve({ id: r.id }) }
+      );
+    expect((await patch("DECLINED", "  この日は満席のため承れませんでした。翌週なら空きがあります。  ")).status).toBe(200);
+    expect(mail.sent).toHaveLength(1);
+    expect(mail.sent[0]).toMatchObject({ kind: "declined", message: "この日は満席のため承れませんでした。翌週なら空きがあります。" });
+    const after = await prisma.reservation.findUniqueOrThrow({ where: { id: r.id } });
+    expect(after.staffMessage).toBe("この日は満席のため承れませんでした。翌週なら空きがあります。");
+    const ev = await prisma.reservationEvent.findFirstOrThrow({ where: { reservationId: r.id, toStatus: "DECLINED" } });
+    expect(ev.message).toBe("この日は満席のため承れませんでした。翌週なら空きがあります。");
+
+    // 500文字超は弾く
+    expect((await patch("CONFIRMED", "あ".repeat(501))).status).toBe(400);
   });
 
   it("結果メールが送れなくても状態変更は通る", async () => {

@@ -105,5 +105,8 @@ export const AdminReservationSchema = ReservationSchema.extend({
 /** 台帳での状態変更 */
 export const ReservationStatusSchema = z.object({
   status: z.enum(["PENDING", "CONFIRMED", "DECLINED", "CANCELED", "VISITED", "NO_SHOW"]),
+  /** 内部メモ（お客様には出さない） */
   memo: z.string().max(200).optional().default(""),
+  /** お客様へのメッセージ。確定/お断りのメールとマイページに載る */
+  message: z.string().trim().max(500, "メッセージは500文字までです").optional().default(""),
 });

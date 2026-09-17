@@ -75,6 +75,12 @@ export default async function MyReservationsPage() {
                       店舗が内容を確認中です。確定 / 満席のご連絡はメールと公式LINEでお送りします。
                     </p>
                   )}
+                  {r.staffMessage && (
+                    <div className="mt-2 rounded-lg border border-neon-purple/40 bg-neon-purple/10 px-3 py-2" data-testid="staff-message">
+                      <p className="text-[11px] text-white/50">店舗からのメッセージ</p>
+                      <p className="text-sm text-white/90 whitespace-pre-wrap">{r.staffMessage}</p>
+                    </div>
+                  )}
                 </li>
               );
             })}

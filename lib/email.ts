@@ -117,7 +117,21 @@ export type ReservationMailInfo = {
   visitTime: string;
   partySize: number;
   customerName: string;
+  /** 店舗からお客様へのメッセージ（任意）。あればメールに「店舗からのメッセージ」として載せる */
+  message?: string;
 };
+
+function staffMessageHtml(r: ReservationMailInfo) {
+  if (!r.message) return "";
+  return `
+    <div style="margin:16px 0;padding:12px 16px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:4px">
+      <p style="margin:0 0 6px;color:#666;font-size:12px">店舗からのメッセージ</p>
+      <p style="margin:0;white-space:pre-wrap">${escapeHtml(r.message)}</p>
+    </div>`;
+}
+function staffMessageText(r: ReservationMailInfo) {
+  return r.message ? `\n【店舗からのメッセージ】\n${r.message}\n` : "";
+}
 
 function reservationSummaryHtml(r: ReservationMailInfo) {
   return `
@@ -171,10 +185,11 @@ export async function sendReservationConfirmedEmail(r: ReservationMailInfo) {
     <p>${escapeHtml(r.customerName)} 様</p>
     <p>以下の内容でご予約を承りました。ご来店をお待ちしております。</p>
     ${reservationSummaryHtml(r)}
+    ${staffMessageHtml(r)}
     <p>ご来店時に年齢確認をさせていただきます。身分証をお持ちください。</p>
     <p>ご来店時間の変更・キャンセルは、公式LINEのトークからご連絡ください。</p>
   `);
-  const text = `${r.customerName} 様\n\n以下の内容でご予約を承りました。ご来店をお待ちしております。\n\n${reservationSummaryText(r)}\n\nご来店時に年齢確認をさせていただきます。身分証をお持ちください。\nご来店時間の変更・キャンセルは、公式LINEのトークからご連絡ください。`;
+  const text = `${r.customerName} 様\n\n以下の内容でご予約を承りました。ご来店をお待ちしております。\n\n${reservationSummaryText(r)}\n${staffMessageText(r)}\nご来店時に年齢確認をさせていただきます。身分証をお持ちください。\nご来店時間の変更・キャンセルは、公式LINEのトークからご連絡ください。`;
   await sendReservationMail(r.to, subject, html, text);
 }
 
@@ -185,9 +200,10 @@ export async function sendReservationDeclinedEmail(r: ReservationMailInfo) {
     <p>${escapeHtml(r.customerName)} 様</p>
     <p>誠に申し訳ございません。以下のお申し込みは、満席等の理由によりお受けすることができませんでした。</p>
     ${reservationSummaryHtml(r)}
+    ${staffMessageHtml(r)}
     <p>別の日時でのご来店をご検討いただける場合は、<a href="${BASE}/reserve">予約フォーム</a>からあらためてお申し込みください。</p>
   `);
-  const text = `${r.customerName} 様\n\n誠に申し訳ございません。以下のお申し込みは、満席等の理由によりお受けすることができませんでした。\n\n${reservationSummaryText(r)}\n\n別の日時でのご来店をご検討いただける場合は、予約フォームからあらためてお申し込みください: ${BASE}/reserve`;
+  const text = `${r.customerName} 様\n\n誠に申し訳ございません。以下のお申し込みは、満席等の理由によりお受けすることができませんでした。\n\n${reservationSummaryText(r)}\n${staffMessageText(r)}\n別の日時でのご来店をご検討いただける場合は、予約フォームからあらためてお申し込みください: ${BASE}/reserve`;
   await sendReservationMail(r.to, subject, html, text);
 }
 
