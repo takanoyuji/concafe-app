@@ -92,6 +92,10 @@ model Cast {
   updatedAt DateTime @updatedAt
 
   stores       CastStore[]
+  /// キャスト本人のログインアカウント（role=CAST）の User.id。招待を受けた時点で結ぶ。1:1。
+  /// 外部キーは張らない（SQLite の ALTER では足せず、テーブル再作成になるため）。参照は lib/castPortal.ts で引く
+  userId       String?     @unique
+  inviteTokens CastInviteToken[]
   ledgerItems  PointLedger[]
   monthlyRanks CastMonthlyRank[]
 
@@ -137,11 +141,43 @@ model SalaryPeriod {
   half      Int // 1=前半(1-15日), 2=後半(16日-末日)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  /// 店長が「確定」した時刻。確定後は計算実行＋保存で上書きできない（409）。キャスト向け表示の「確定」の根拠
+  finalizedAt       DateTime?
+  finalizedByUserId String?
 
   castRecords   SalaryCastRecord[]
   summaryRecord SalarySummaryRecord?
+  logs          SalaryPeriodLog[]
 
   @@unique([storeName, year, month, half])
+}
+
+/// 確定・確定解除の記録。金額の変更経路を追えるようにする
+model SalaryPeriodLog {
+  id        String   @id @default(cuid())
+  periodId  String
+  action    String   // "finalize" | "unfinalize"
+  userId    String
+  createdAt DateTime @default(now())
+
+  period SalaryPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([periodId])
+}
+
+/// キャストの招待。トークンは SHA-256 のハッシュで持つ（生の値はメールにしか無い）
+model CastInviteToken {
+  id        String    @id @default(cuid())
+  castId    String
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  cast Cast @relation(fields: [castId], references: [id], onDelete: Cascade)
+
+  @@index([castId])
 }
 
 model SalaryCastRecord {
@@ -158,6 +194,8 @@ model SalaryCastRecord {
   payment     Float  @default(0)
   grossProfit Float  @default(0)
   totalSales  Float  @default(0)
+  /// 不変コード（Cast.castCode の写し）。2026-09-17 より前のレコードは空。キャストポータルが本人の行を引く鍵
+  castCode    String @default("")
   /// 給与（100円丸め前）。最低賃金の判定は これ − 通勤手当 を労働時間で割る
   salary      Float  @default(0)
   /// 労働時間（分）。0 は「記録なし」（2026-09-17 より前のレコード）で、最低賃金の判定から外す

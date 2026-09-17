@@ -13,6 +13,8 @@ export interface CastInput {
 }
 
 export interface CastResult {
+  /** 不変コード。キャスト本人の画面（キャストポータル）はこれで自分の行を引く */
+  castCode: string;
   castName: string;
   rank: string;
   /** 労働時間（分）。人件費の入力（CSV / みせ勤）の労働時間を足したもの */
@@ -363,6 +365,7 @@ export function calculateSalaryFromRows(
     const payment = Math.round(salary / 100) * 100;
 
     results.push({
+      castCode: c.castCode,
       castName: c.castName,
       rank: c.rank,
       workMinutes: sumHm(wageEntry.laborTimes),

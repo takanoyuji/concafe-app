@@ -28,6 +28,10 @@ export async function DELETE(req: Request) {
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id は必須です" }, { status: 400 });
 
+  // 確定済みは消せない（キャストに見せた「確定」を消さない）。解除してから
+  const period = await prisma.salaryPeriod.findUnique({ where: { id }, select: { finalizedAt: true } });
+  if (period?.finalizedAt) return NextResponse.json({ error: "確定済みの期間は削除できません。先に確定を解除してください" }, { status: 409 });
+
   await prisma.salaryPeriod.delete({ where: { id } });
   return NextResponse.json({ message: "Deleted" });
 }

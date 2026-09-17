@@ -1,4 +1,5 @@
 "use client";
+import DailySalesTab from "@/components/admin/DailySalesTab";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import NavBar from "@/components/ui/NavBar";
@@ -10,7 +11,7 @@ interface Customer { id: string; email: string; emailVerified: boolean; birthdat
 interface MenuItem { id: string; imageUrl: string; alt: string; order: number }
 interface ResetLog { id: string; userId: string | null; email: string | null; amount: number; idempotencyKey: string | null; createdAt: string }
 interface CastRank { id: string; name: string; backRate: number; order: number; hourlyWage: number; commutePaid: boolean }
-interface CastMaster { id: string; castCode: string; name: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; commuteDaily: number; }
+interface CastMaster { id: string; castCode: string; name: string; rank: string; retired: boolean; tokyoAirRegi: string; tokyoAirShift: string; osakaAirRegi: string; osakaAirShift: string; nagoyaAirRegi: string; nagoyaAirShift: string; commuteDaily: number; userId?: string | null; }
 interface CastResult { castName: string; rank: string; workMinutes?: number; basicPay: number; commute: number; grossProfit: number; totalSales: number; remoteSales?: number; remoteGrossProfit?: number; back: number; salary: number; payment: number }
 interface SalarySummary { casts: CastResult[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; purchases: number; castPay: number; laborCost: number; contributionProfit: number; workHours: string;
   // 遠隔売上の内訳。エアレジ側と remodri 側の両方に金額があれば二重計上を疑う
@@ -29,7 +30,7 @@ interface AccountingResult {
 interface StoreCoverage { storeName: string; foundHalves: number[]; missingHalves: string[] }
 interface LaborTotals { castPay: number; otherLaborCost: number; laborCost: number; totalSalesTaxIncl: number; grossProfit: number; contributionProfit: number }
 interface StoreReport { storeName: string; halves: string[]; totalSalesTaxIncl: number; remoteSales: number; localSales: number; taxAmount: number; grossProfit: number; castPay: number; laborCost: number; contributionProfit: number; }
-interface SalaryPeriod { id: string; storeName: string; year: number; month: number; half: number; updatedAt: string; summaryRecord: { totalSalesTaxIncl: number; grossProfit: number; castPay: number; laborCost: number; contributionProfit: number; } | null }
+interface SalaryPeriod { id: string; storeName: string; year: number; month: number; half: number; updatedAt: string; finalizedAt?: string | null; summaryRecord: { totalSalesTaxIncl: number; grossProfit: number; castPay: number; laborCost: number; contributionProfit: number; } | null }
 // hpName は SalaryCastRecord の列名。Cast の name とは別物なので一括置換しないこと
 interface HistoryCastRecord extends CastResult { hpName: string; }
 interface PeriodDetail { id: string; storeName: string; year: number; month: number; half: number; castRecords: HistoryCastRecord[]; summaryRecord: SalarySummary | null }
@@ -37,7 +38,7 @@ interface PeriodDetail { id: string; storeName: string; year: number; month: num
 /** 金額表示。既存の各ブロック内 fmt と同じ書式 */
 const yen = (n: number) => `¥${Math.round(n).toLocaleString()}`;
 
-type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary";
+type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary" | "sales";
 
 const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, isPublished: true, retired: false, twitterUrl: "", instagramUrl: "", tiktokUrl: "", airShiftName: "", rank: "", exemptFromCommuteRule: false };
 const MENU_EMPTY = { imageUrl: "", alt: "", order: 0 };
@@ -541,8 +542,36 @@ export default function AdminPage() {
 
   const deleteHistoryPeriod = async (id: string) => {
     if (!confirm("この期間の給与データを削除しますか？")) return;
-    await fetch(`/api/admin/salary/history?id=${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/salary/history?id=${id}`, { method: "DELETE" });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); flash(d.error ?? "削除できませんでした", true); return; }
     setHistoryDetail(null);
+    fetchAll();
+  };
+
+  // キャストの招待（docs/cast-portal-requirements.md 3章）。メールを聞いて招待リンクを送る
+  const inviteCast = async (m: CastMaster) => {
+    const email = prompt(`${m.name} さんのキャストページ用メールアドレス（客の会員登録と同じメールは使えません）`);
+    if (!email) return;
+    const res = await fetch(`/api/admin/cast-master/${m.id}/invite`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { flash(d.error ?? "招待に失敗しました", true); return; }
+    if (d.devUrl) { prompt("メール送信が未設定のため、このリンクを本人に渡してください（7日間有効）", d.devUrl); }
+    else flash(`${d.email} に招待メールを送りました（7日間有効）`);
+  };
+
+  // 確定 / 確定解除（docs/cast-portal-requirements.md 5章）。確定するとキャストページで「確定」と出て、以後は上書きできない
+  const toggleFinalize = async (p: SalaryPeriod) => {
+    const finalize = !p.finalizedAt;
+    const label = `${p.storeName} ${p.year}/${String(p.month).padStart(2, "0")} ${halfLabel(p.half)}`;
+    if (!confirm(finalize
+      ? `${label} を確定しますか？\n確定するとキャストページに「確定」として表示され、計算実行で上書きできなくなります。`
+      : `${label} の確定を解除しますか？\nキャストページの表示が「速報」に戻り、上書きできるようになります。`)) return;
+    const res = await fetch(`/api/admin/salary/history/${p.id}/finalize`, { method: finalize ? "POST" : "DELETE" });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { flash(d.error ?? "操作に失敗しました", true); return; }
+    flash(finalize ? "確定しました" : "確定を解除しました");
     fetchAll();
   };
 
@@ -824,6 +853,7 @@ export default function AdminPage() {
   const TABS: { key: Tab; label: string }[] = [
     { key: "cast",       label: "🐺 キャスト" },
     { key: "salary",     label: "💴 給与計算" },
+    { key: "sales",      label: "📈 売上" },
     { key: "points",     label: "⭐ ポイント付与" },
     { key: "titles",     label: "🏆 称号マスタ" },
     { key: "menu",       label: "🍽️ メニュー" },
@@ -1068,7 +1098,7 @@ export default function AdminPage() {
                   </div>
                   {/* マスタ一覧 (inline edit) */}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs min-w-[1110px]">
+                    <table className="w-full text-xs min-w-[1180px]">
                       <thead>
                         <tr className="text-white/50 border-b border-white/10">
                           <th className="text-left pb-2 pr-2">コード</th>
@@ -1081,6 +1111,7 @@ export default function AdminPage() {
                           <th className="text-left pb-2 pr-2">名古屋<br/>エアシフト</th>
                           <th className="text-left pb-2 pr-2">ランク</th>
                           <th className="text-left pb-2 pr-2">通勤<br/>日額</th>
+                          <th className="text-left pb-2 pr-2">ログイン</th>
                           <th className="text-left pb-2 pr-2">退職</th>
                           <th className="pb-2"></th>
                         </tr>
@@ -1124,6 +1155,12 @@ export default function AdminPage() {
                                   onChange={ev => setMasterEdits(p => ({ ...p, [m.id]: { ...(p[m.id] ?? mWithMonthlyRank), commuteDaily: Number(ev.target.value) } }))}
                                 />
                               </td>
+                              <td className="py-1 pr-2 whitespace-nowrap">
+                                {/* キャストページのアカウント。結ばれていれば「あり」、無ければ招待ボタン */}
+                                {m.userId
+                                  ? <span className="text-green-300 text-xs">あり</span>
+                                  : <button onClick={() => inviteCast(m)} disabled={m.retired} className="text-xs text-neon-violet hover:text-neon-purple disabled:opacity-40">招待</button>}
+                              </td>
                               <td className="py-1 pr-2">
                                 <input type="checkbox"
                                   checked={Boolean(e.retired)}
@@ -1150,6 +1187,8 @@ export default function AdminPage() {
         )}
 
         {/* 給与計算 */}
+        {tab === "sales" && <DailySalesTab />}
+
         {tab === "salary" && (
           <div className="space-y-6">
 
@@ -1955,8 +1994,14 @@ export default function AdminPage() {
                                       >
                                         {halfLabel(p.half)}
                                         {p.summaryRecord && <span className="ml-1.5 text-white/40">給与 ¥{Math.round(p.summaryRecord.castPay).toLocaleString()}</span>}
+                                        {p.finalizedAt && <span className="ml-1.5 text-green-300" title={`確定 ${new Date(p.finalizedAt).toLocaleString("ja-JP")}`}>確定</span>}
                                       </button>
-                                      <button onClick={() => deleteHistoryPeriod(p.id)} className="text-neon-pink/60 hover:text-neon-pink text-xs px-1" title="削除">✕</button>
+                                      <button onClick={() => toggleFinalize(p)}
+                                        className={`text-xs px-2 py-1 rounded border ${p.finalizedAt ? "border-white/20 text-white/50 hover:text-white" : "border-green-400/50 text-green-300 hover:bg-green-400/10"}`}
+                                        title={p.finalizedAt ? "確定を解除" : "確定する"}>
+                                        {p.finalizedAt ? "解除" : "確定"}
+                                      </button>
+                                      {!p.finalizedAt && <button onClick={() => deleteHistoryPeriod(p.id)} className="text-neon-pink/60 hover:text-neon-pink text-xs px-1" title="削除">✕</button>}
                                     </div>
                                   );
                                 })}

@@ -45,6 +45,8 @@ function LoginForm() {
       router.push(next);
     } else if (data.user?.role === "ADMIN") {
       router.push("/admin");
+    } else if (data.user?.role === "CAST") {
+      router.push("/cast/me");
     } else {
       router.push("/me");
     }

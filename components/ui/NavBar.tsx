@@ -138,8 +138,8 @@ export default function NavBar() {
                   管理画面
                 </Link>
               )}
-              <Link href="/me" className="btn-secondary text-sm py-1.5 px-3">
-                マイページ
+              <Link href={user.role === "CAST" ? "/cast/me" : "/me"} className="btn-secondary text-sm py-1.5 px-3">
+                {user.role === "CAST" ? "キャストページ" : "マイページ"}
               </Link>
               <button onClick={handleLogout} className="btn-primary text-sm py-1.5 px-3">
                 ログアウト
@@ -212,8 +212,8 @@ export default function NavBar() {
                     管理画面
                   </Link>
                 )}
-                <Link href="/me" onClick={() => setOpen(false)} className="btn-secondary block w-full text-center text-sm">
-                  マイページ
+                <Link href={user.role === "CAST" ? "/cast/me" : "/me"} onClick={() => setOpen(false)} className="btn-secondary block w-full text-center text-sm">
+                  {user.role === "CAST" ? "キャストページ" : "マイページ"}
                 </Link>
                 <button onClick={handleLogout} className="btn-primary block w-full text-center text-sm">
                   ログアウト

@@ -7,6 +7,7 @@ import { fetchRemodriSalesByCast, attributeByPrimaryStore, isRemodriConfigured, 
 import { fetchMisekinAttendance, buildWagesFromAttendance, isMisekinConfigured, MisekinError, type MisekinWages } from "@/lib/misekin";
 import { getRanksForPeriod } from "@/lib/rank";
 import { checkMinimumWage, type MinWageInput } from "@/lib/minWage";
+import { clearPortalCache } from "@/lib/castPortal";
 
 function storePrefix(storeName: string): "tokyo" | "osaka" | "nagoya" | null {
   if (storeName.includes("池袋") || storeName === "東京") return "tokyo";
@@ -234,6 +235,13 @@ export async function POST(req: Request) {
     const existing = await prisma.salaryPeriod.findUnique({
       where: { storeName_year_month_half: { storeName: store, year, month, half } },
     });
+    // 確定済みは上書きしない（キャストに「確定」として見せた額を変えない）。解除してから保存し直す
+    if (existing?.finalizedAt) {
+      return NextResponse.json(
+        { error: `${store} ${year}/${String(month).padStart(2, "0")} ${half === 1 ? "前半" : half === 2 ? "後半" : "全体"} は確定済みです。上書きするには給与履歴で「確定を解除」してください`, summary, ...extras },
+        { status: 409 }
+      );
+    }
     if (existing) {
       await prisma.salaryPeriod.delete({ where: { id: existing.id } });
     }
@@ -243,6 +251,7 @@ export async function POST(req: Request) {
         storeName: store, year, month, half,
         castRecords: {
           create: summary.casts.map(c => ({
+            castCode:    c.castCode,
             castName:    c.castName,
             hpName:      hpNameMap.get(c.castName) ?? "",
             rank:        c.rank,
@@ -273,6 +282,7 @@ export async function POST(req: Request) {
         },
       },
     });
+    clearPortalCache();
     return NextResponse.json({ summary, periodId: period.id, ...extras });
   }
 

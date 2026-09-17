@@ -124,3 +124,50 @@ export function attributeByPrimaryStore(
   }
   return { mine, orphans };
 }
+
+/** 営業日別の遠隔売上（税込）。storeCode は「キャストの所属店舗」で絞る（remodri 側の仕様） */
+export interface RemodriDailySales {
+  businessDate: string; // YYYY-MM-DD
+  amount: number;
+  count: number;
+}
+
+export async function fetchRemodriSalesByDate(
+  from: string,
+  to: string,
+  storeCode?: RemodriStoreCode
+): Promise<RemodriDailySales[]> {
+  const base = process.env.REMODRI_API_URL;
+  const key = process.env.REMODRI_API_KEY;
+  if (!base || !key) {
+    throw new RemodriError("remodri の接続設定（REMODRI_API_URL / REMODRI_API_KEY）がありません");
+  }
+  const url =
+    `${base.replace(/\/$/, "")}/api/v1/sales/summary` +
+    `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&groupBy=date` +
+    (storeCode ? `&storeCode=${encodeURIComponent(storeCode)}` : "");
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${key}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (e) {
+    throw new RemodriError(`remodri に接続できませんでした（${e instanceof Error ? e.message : String(e)}）`);
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new RemodriError(`remodri がエラーを返しました（HTTP ${res.status}）${body.slice(0, 120)}`);
+  }
+  const data = await res.json().catch(() => null);
+  if (!data || !Array.isArray(data.rows)) {
+    throw new RemodriError("remodri の応答を解釈できませんでした（rows がありません）");
+  }
+  return (data.rows as Record<string, unknown>[]).map(r => ({
+    businessDate: String(r.key ?? ""),
+    amount: Number(r.amount ?? 0),
+    count: Number(r.count ?? 0),
+  }));
+}
