@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
@@ -7,10 +7,8 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const session = await requireFeature("cast");
+  if (session instanceof Response) return session;
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;

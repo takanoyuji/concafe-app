@@ -165,19 +165,33 @@ model SalaryPeriodLog {
   @@index([periodId])
 }
 
-/// キャストの招待。トークンは SHA-256 のハッシュで持つ（生の値はメールにしか無い）
+/// スタッフ（キャスト / 店長）の招待。トークンは SHA-256 のハッシュで持つ（生の値はメールにしか無い）。
+/// castId が無い招待は「キャストマスタに無い店長」（権限管理から発行）
 model CastInviteToken {
   id        String    @id @default(cuid())
-  castId    String
+  castId    String?
   email     String
+  /// 受諾したときに付けるロール: CAST / MANAGER
+  role      String    @default("CAST")
   tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
-  cast Cast @relation(fields: [castId], references: [id], onDelete: Cascade)
+  cast Cast? @relation(fields: [castId], references: [id], onDelete: Cascade)
 
   @@index([castId])
+}
+
+/// 機能 × ロール の可否（既定からの上書きだけ持つ）。lib/permissions.ts が既定と重ねて読む
+model RolePermission {
+  id        String   @id @default(cuid())
+  role      String   // MANAGER / CAST
+  feature   String   // lib/permissions.ts の Feature
+  allowed   Boolean
+  updatedAt DateTime @updatedAt
+
+  @@unique([role, feature])
 }
 
 model SalaryCastRecord {

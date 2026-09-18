@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     const payload: SessionPayload = {
       userId: updatedUser.id,
-      role: updatedUser.role as "CUSTOMER" | "ADMIN",
+      role: updatedUser.role as SessionPayload["role"],
       emailVerified: updatedUser.emailVerified,
       mustChangePassword: false,
     };

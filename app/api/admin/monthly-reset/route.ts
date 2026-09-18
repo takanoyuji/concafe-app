@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getUserBalance } from "@/lib/points";
 
@@ -54,10 +54,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const session = await requireFeature("resets");
+  if (session instanceof Response) return session;
 
   const resets = await prisma.pointLedger.findMany({
     where: { type: "MONTHLY_RESET" },

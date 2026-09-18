@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { isMisekinConfigured } from "@/lib/misekin";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/admin/salary/history
 // 保存済みの給与期間一覧を返す
 export async function GET() {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("salary");
+  if (session instanceof Response) return session;
 
   const periods = await prisma.salaryPeriod.findMany({
     include: { summaryRecord: true },
@@ -20,9 +19,8 @@ export async function GET() {
 
 // DELETE /api/admin/salary/history?id=xxx
 export async function DELETE(req: Request) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("salary");
+  if (session instanceof Response) return session;
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");

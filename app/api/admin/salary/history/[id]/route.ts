@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { checkMinimumWage, type MinWageInput, type MinWageStoreCode } from "@/lib/minWage";
 
@@ -15,9 +15,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("salary");
+  if (session instanceof Response) return session;
 
   const { id } = await params;
   const period = await prisma.salaryPeriod.findUnique({

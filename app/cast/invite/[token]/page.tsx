@@ -9,7 +9,7 @@ import { logoUrl } from "@/lib/logo";
 export default function CastInvitePage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
-  const [info, setInfo] = useState<{ castName: string; email: string } | null>(null);
+  const [info, setInfo] = useState<{ castName: string; email: string; role: "CAST" | "MANAGER"; roleLabel: string } | null>(null);
   const [invalid, setInvalid] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -34,7 +34,7 @@ export default function CastInvitePage() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { setError(d.error ?? "設定に失敗しました"); return; }
-      router.push("/cast/me");
+      router.push(d.role === "MANAGER" ? "/admin" : "/cast/me");
       router.refresh();
     } finally { setLoading(false); }
   };
@@ -44,7 +44,7 @@ export default function CastInvitePage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Link href="/"><img src={logoUrl} alt="星狼 ロゴ" width={120} height={60} className="object-contain mx-auto mb-4 w-[120px] h-[60px]" /></Link>
-          <h1 className="text-2xl font-black gradient-text">キャストページの設定</h1>
+          <h1 className="text-2xl font-black gradient-text">{info?.role === "MANAGER" ? "店長アカウントの設定" : "キャストページの設定"}</h1>
         </div>
         {invalid ? (
           <div className="glass p-6 text-center space-y-3">
@@ -55,7 +55,7 @@ export default function CastInvitePage() {
           <div className="glass p-6 text-center text-white/50 text-sm">確認中...</div>
         ) : (
           <form onSubmit={submit} className="glass p-6 space-y-4" data-testid="cast-invite-form">
-            <p className="text-sm text-white/70"><span className="font-bold text-white">{info.castName}</span> さんのアカウントを作成します。</p>
+            <p className="text-sm text-white/70"><span className="font-bold text-white">{info.castName || info.email}</span> さんの{info.roleLabel}アカウントを作成します。</p>
             <p className="text-xs text-white/50">ログインID: {info.email}</p>
             {error && <div className="text-neon-pink text-sm text-center p-3 bg-pink-950/30 rounded-lg">{error}</div>}
             <div>

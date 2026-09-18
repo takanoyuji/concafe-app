@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { getCastByUserId } from "@/lib/castPortal";
+import { can } from "@/lib/permissions";
 import NavBar from "@/components/ui/NavBar";
 
 export const dynamic = "force-dynamic";
@@ -12,13 +13,15 @@ export default async function CastMePage() {
   if (!session) redirect("/auth/login");
   if (session.role !== "CAST") redirect("/");
   const cast = await getCastByUserId(session.userId);
+  // キャスト売上は権限管理で切れる（既定は可）
+  const canSales = await can(session.role, "cast_sales");
 
   return (
     <>
       <NavBar />
       <main className="min-h-screen pt-24 pb-16 px-4 max-w-xl mx-auto space-y-6">
         <div>
-          <p className="text-white/50 text-xs">キャストページ</p>
+          <p className="text-white/50 text-xs">キャストページ <span className="ml-2 px-2 py-0.5 rounded-full border border-neon-violet/50 text-neon-violet" data-testid="role-badge">キャスト</span></p>
           <h1 className="text-2xl font-bold gradient-text mt-1">{cast?.name ?? "—"}</h1>
           {cast?.stores[0] && <p className="text-white/60 text-sm mt-1">所属: {cast.stores[0].store.name}</p>}
         </div>
@@ -31,10 +34,12 @@ export default async function CastMePage() {
               <p className="text-lg font-bold">報酬</p>
               <p className="text-white/60 text-sm mt-1">月ごとの報酬（確定前は速報）</p>
             </Link>
-            <Link href="/cast/me/sales" className="glass p-5 hover:bg-white/5 transition-colors block">
-              <p className="text-lg font-bold">売上一覧</p>
-              <p className="text-white/60 text-sm mt-1">キャストごとの月別売上（来店 / 遠隔）</p>
-            </Link>
+            {canSales && (
+              <Link href="/cast/me/sales" className="glass p-5 hover:bg-white/5 transition-colors block">
+                <p className="text-lg font-bold">売上一覧</p>
+                <p className="text-white/60 text-sm mt-1">キャストごとの月別売上（来店 / 遠隔）</p>
+              </Link>
+            )}
           </div>
         )}
 

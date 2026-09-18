@@ -11,8 +11,8 @@ const MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export type SessionPayload = {
   userId: string;
-  /** CAST はキャスト本人（キャストポータル）。管理画面には入れない */
-  role: "CUSTOMER" | "ADMIN" | "CAST";
+  /** OWNER / MANAGER は管理画面、CAST はキャストポータル、CUSTOMER は客。旧セッションの "ADMIN" は OWNER として読む（lib/permissions.ts） */
+  role: "CUSTOMER" | "ADMIN" | "OWNER" | "MANAGER" | "CAST";
   emailVerified: boolean;
   mustChangePassword: boolean;
 };

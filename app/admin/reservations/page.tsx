@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import NavBar from "@/components/ui/NavBar";
+import AdminSidebar from "@/components/admin/AdminSidebar";
 import {
   SETTINGS,
   SOURCE_LABEL,
@@ -93,6 +94,13 @@ export default function ReservationLedgerPage() {
 
   // 履歴
   const [openId, setOpenId] = useState<string | null>(null);
+  // サイドバー用（使える機能とロール）
+  const [me, setMe] = useState<{ roleLabel: string | null; features: string[] } | null>(null);
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.user) setMe({ roleLabel: d.user.roleLabel ?? null, features: d.user.features ?? [] }); })
+      .catch(() => {});
+  }, []);
   const [events, setEvents] = useState<EventRow[]>([]);
 
   const times = useMemo(() => timeOptions(), []);
@@ -198,7 +206,9 @@ export default function ReservationLedgerPage() {
   return (
     <>
       <NavBar />
-      <main className="min-h-screen pt-24 pb-16 px-4 max-w-5xl mx-auto space-y-6">
+      <main className="min-h-screen pt-24 pb-16 px-4 max-w-6xl mx-auto md:flex md:gap-6 md:items-start">
+        {me && <AdminSidebar features={me.features} current="reservations" roleLabel={me.roleLabel} />}
+        <div className="flex-1 min-w-0 space-y-6">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-black gradient-text">📖 予約台帳</h1>
           <Link href="/admin" className="ml-auto text-white/40 hover:text-white/70 text-sm">
@@ -341,6 +351,7 @@ onChange={requestChange}
           （{SETTINGS.replyFrom}〜24:00 だけを数えるので、深夜に届いた分は朝の時点では点きません）。
           定休日・営業時間はシステムに入っていないので、受けられない日時の申し込みは「お断り」で返してください。
         </p>
+        </div>
       </main>
     </>
   );

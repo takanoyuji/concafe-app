@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 // POST /api/admin/cast/bulk-salary
 // body: { rows: { name, airShiftName, rank }[] }
 // キャスト名で検索してairShiftName/rankを更新
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("cast");
+  if (session instanceof Response) return session;
 
   const body = await req.json();
   const rows: { name: string; airShiftName?: string; rank?: string }[] = body.rows ?? [];

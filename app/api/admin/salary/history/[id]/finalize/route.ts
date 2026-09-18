@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { clearPortalCache } from "@/lib/castPortal";
 
@@ -16,8 +16,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 }
 
 async function toggle({ id }: { id: string }, action: "finalize" | "unfinalize") {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("salary");
+  if (session instanceof Response) return session;
 
   const period = await prisma.salaryPeriod.findUnique({ where: { id }, select: { id: true, finalizedAt: true } });
   if (!period) return NextResponse.json({ error: "Not found" }, { status: 404 });

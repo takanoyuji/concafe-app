@@ -8,17 +8,19 @@ const adapter = new PrismaBetterSqlite3({ url });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  // 初期ADMIN（環境変数で上書き可: ADMIN_EMAIL, ADMIN_PASSWORD）
+  // 初期オーナー（環境変数で上書き可: ADMIN_EMAIL, ADMIN_PASSWORD）。
+  // ロールは 2026-09-18 から OWNER（旧 ADMIN）。毎回の起動で上書きするので、ここが ADMIN のままだと
+  // migration で OWNER にしても戻ってしまう
   const adminEmail = process.env.ADMIN_EMAIL ?? "xinglang22@gmail.com";
   const adminPassword = process.env.ADMIN_PASSWORD ?? "xxx123";
   const passwordHash = await bcrypt.hash(adminPassword, 12);
   await prisma.user.upsert({
     where: { email: adminEmail },
-    update: { role: "ADMIN", emailVerified: true },  // パスワードは初回作成時のみ設定（デプロイのたびにリセットしない）
+    update: { role: "OWNER", emailVerified: true },  // パスワードは初回作成時のみ設定（デプロイのたびにリセットしない）
     create: {
       email: adminEmail,
       passwordHash,
-      role: "ADMIN",
+      role: "OWNER",
       emailVerified: true,
       mustChangePassword: true,
     },

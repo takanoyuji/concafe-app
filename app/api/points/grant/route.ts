@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { GrantPointsSchema } from "@/lib/validations";
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const session = await requireFeature("points");
+  if (session instanceof Response) return session;
 
   const body = await req.json();
   const parsed = GrantPointsSchema.safeParse(body);

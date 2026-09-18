@@ -70,7 +70,7 @@ const NAV_ITEMS = [
   { href: "/#sec07", label: "SNS",      Icon: HeartIcon },
 ];
 
-interface SessionUser { id: string; role: string }
+interface SessionUser { id: string; role: string; roleLabel?: string | null; canAccessAdmin?: boolean }
 
 export default function NavBar() {
   const [open, setOpen] = useState(false);
@@ -133,7 +133,11 @@ export default function NavBar() {
           {/* 認証ボタン */}
           {user === undefined ? null : user ? (
             <div className="flex items-center gap-2 ml-4">
-              {user.role === "ADMIN" && (
+              {/* ロールのバッジ。客（CUSTOMER）は roleLabel が無いので出ない */}
+              {user.roleLabel && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full border border-neon-violet/50 text-neon-violet" data-testid="role-badge">{user.roleLabel}</span>
+              )}
+              {user.canAccessAdmin && (
                 <Link href="/admin" className="btn-secondary text-sm py-1.5 px-3">
                   管理画面
                 </Link>
@@ -207,7 +211,10 @@ export default function NavBar() {
           <div className="px-4 mt-4 space-y-2">
             {user ? (
               <>
-                {user.role === "ADMIN" && (
+                {user.roleLabel && (
+                  <p className="text-center text-[11px] text-neon-violet">{user.roleLabel}</p>
+                )}
+                {user.canAccessAdmin && (
                   <Link href="/admin" onClick={() => setOpen(false)} className="btn-secondary block w-full text-center text-sm">
                     管理画面
                   </Link>

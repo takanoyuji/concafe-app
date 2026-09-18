@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { ReservationStatusSchema } from "@/lib/validations";
 import { sendReservationConfirmedEmail, sendReservationDeclinedEmail } from "@/lib/email";
 import { canTransition, STATUS_LABEL, type ReservationStatus } from "@/lib/reservation";
 
 /** 1件の詳細と、状態変更の履歴 */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("reservations");
+  if (session instanceof Response) return session;
 
   const { id } = await ctx.params;
   const reservation = await prisma.reservation.findUnique({
@@ -31,9 +30,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
  * といった後から台帳の意味が変わる操作は弾く。誰がいつ変えたかは必ず履歴に残す。
  */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("reservations");
+  if (session instanceof Response) return session;
 
   const { id } = await ctx.params;
   const parsed = ReservationStatusSchema.safeParse(await req.json().catch(() => null));

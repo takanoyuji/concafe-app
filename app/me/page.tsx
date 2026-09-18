@@ -6,6 +6,7 @@ import { getUserBalance, getUserTitle } from "@/lib/points";
 import { PUBLIC_CAST_WHERE } from "@/lib/cast";
 import { customerReservationWhere } from "@/lib/reservation";
 import NavBar from "@/components/ui/NavBar";
+import { canAccessAdmin, normalizeRole, ROLE_LABEL } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,8 @@ export default async function MePage() {
   const session = await getSession();
   if (!session) redirect("/auth/login");
 
-  const isAdmin = session.role === "ADMIN";
+  const isAdmin = canAccessAdmin(session.role);
+  const roleLabel = ROLE_LABEL[normalizeRole(session.role)];
 
   const [user, balance, titleInfo] = await Promise.all([
     prisma.user.findUnique({
@@ -136,6 +138,12 @@ export default async function MePage() {
         <h1 className="text-3xl font-black gradient-text text-neon-glow text-center">
           マイページ
         </h1>
+        {/* ロールの表示。客（CUSTOMER）はラベルが空なので出ない */}
+        {roleLabel && (
+          <p className="text-center text-xs" data-testid="role-badge">
+            <span className="px-3 py-1 rounded-full border border-neon-violet/50 text-neon-violet">{roleLabel}</span>
+          </p>
+        )}
 
         {/* プロフィール */}
         <div className="glass p-6 space-y-2">

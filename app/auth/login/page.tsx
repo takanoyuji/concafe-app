@@ -43,7 +43,7 @@ function LoginForm() {
       router.push("/auth/reset-password");
     } else if (next) {
       router.push(next);
-    } else if (data.user?.role === "ADMIN") {
+    } else if (data.user?.role === "ADMIN" || data.user?.role === "OWNER" || data.user?.role === "MANAGER") {
       router.push("/admin");
     } else if (data.user?.role === "CAST") {
       router.push("/cast/me");

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
+import { can } from "@/lib/permissions";
 import { CastSchema } from "@/lib/validations";
 import { PUBLIC_CAST_WHERE, setPrimaryStore } from "@/lib/cast";
 
@@ -10,7 +12,7 @@ export async function GET(
 ) {
   const { id } = await params;
   const session = await getSession();
-  const isAdmin = session?.role === "ADMIN";
+  const isAdmin = Boolean(session && (await can(session.role, "cast")));
   const cast = await prisma.cast.findFirst({
     where: isAdmin ? { id } : { id, ...PUBLIC_CAST_WHERE },
     select: {
@@ -44,10 +46,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const session = await requireFeature("cast");
+  if (session instanceof Response) return session;
 
   const { id } = await params;
   const body = await req.json();
@@ -76,9 +76,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("cast");
+  if (session instanceof Response) return session;
 
   const { id } = await params;
   const body = await req.json();
@@ -95,10 +94,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const session = await requireFeature("cast");
+  if (session instanceof Response) return session;
 
   const { id } = await params;
   await prisma.cast.delete({ where: { id } });

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken, COOKIE_NAME } from "@/lib/auth";
 
+// lib/permissions.ts は prisma を持つのでエッジでは読まない。ロールの判定だけここに写す
+const isAdminRole = (role: string | undefined) => role === "OWNER" || role === "MANAGER" || role === "ADMIN";
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(COOKIE_NAME)?.value;
@@ -11,7 +14,7 @@ export async function proxy(request: NextRequest) {
     (pathname.startsWith("/auth/login") || pathname.startsWith("/auth/signup")) &&
     session
   ) {
-    return NextResponse.redirect(new URL(session.role === "CAST" ? "/cast/me" : "/me", request.url));
+    return NextResponse.redirect(new URL(session.role === "CAST" ? "/cast/me" : isAdminRole(session.role) ? "/admin" : "/me", request.url));
   }
 
   // 要ログイン
@@ -26,8 +29,8 @@ export async function proxy(request: NextRequest) {
     if (session.role !== "CAST") return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // 要ADMIN（CAST も入れない）
-  if (pathname.startsWith("/admin") && (!session || session.role !== "ADMIN")) {
+  // 管理画面は OWNER / MANAGER（旧 ADMIN）。機能ごとの可否は各ページ・APIで判定する
+  if (pathname.startsWith("/admin") && (!session || !isAdminRole(session.role))) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 

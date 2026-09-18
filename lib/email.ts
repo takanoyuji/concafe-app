@@ -228,8 +228,9 @@ function escapeHtml(s: string): string {
  * キャストの招待メール（docs/cast-portal-requirements.md 3章）。
  * Resend 未設定のときはリンクを返す（管理画面に出して手渡しできるようにする）
  */
-export async function sendCastInviteEmail(email: string, castName: string, token: string): Promise<string | undefined> {
+export async function sendCastInviteEmail(email: string, castName: string, token: string, role: "CAST" | "MANAGER" = "CAST"): Promise<string | undefined> {
   const url = `${BASE}/cast/invite/${token}`;
+  const what = role === "MANAGER" ? "店長用の管理画面" : "キャストページ";
 
   if (!process.env.RESEND_API_KEY) {
     console.log(`\n[DEV EMAIL] キャスト招待リンク for ${email}:\n${url}\n`);
@@ -238,12 +239,12 @@ export async function sendCastInviteEmail(email: string, castName: string, token
 
   await sendEmail({
     to: email,
-    subject: "【星狼】キャストページのご案内",
+    subject: `【星狼】${what}のご案内`,
     html: `
       <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
-        <h2>星狼 キャストページ</h2>
-        <p>${escapeHtml(castName)} さん</p>
-        <p>キャストページのアカウントをご用意しました。以下のリンクからパスワードを設定するとログインできます。</p>
+        <h2>星狼 ${what}</h2>
+        <p>${escapeHtml(castName || email)} さん</p>
+        <p>${what}のアカウントをご用意しました。以下のリンクからパスワードを設定するとログインできます。</p>
         <p><a href="${url}" style="background:#7c3aed;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block">パスワードを設定する</a></p>
         <p style="color:#666;font-size:12px">このリンクは7日間有効です。心当たりがない場合はこのメールを破棄してください。</p>
       </div>

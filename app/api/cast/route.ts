@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
+import { can } from "@/lib/permissions";
 import { CastSchema } from "@/lib/validations";
 import { PUBLIC_CAST_WHERE, setPrimaryStore } from "@/lib/cast";
 import { createCastCodeAllocator } from "@/lib/castCode";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  const isAdmin = session?.role === "ADMIN";
+  // 非公開キャストを見られるのは「キャスト」機能を持つロール（オーナー・店長）
+  const isAdmin = Boolean(session && (await can(session.role, "cast")));
   // 非公開キャストは管理者が明示的に要求したときだけ返す
   // （管理者がギフト・推し選択画面を開いたときに混ざらないようにするため）
   const includeHidden = isAdmin && req.nextUrl.searchParams.get("includeHidden") === "1";
@@ -43,10 +46,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const session = await requireFeature("cast");
+  if (session instanceof Response) return session;
 
   const body = await req.json();
   const parsed = CastSchema.safeParse(body);

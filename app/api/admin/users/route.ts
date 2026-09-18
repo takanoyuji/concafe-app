@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const session = await requireFeature("points");
+  if (session instanceof Response) return session;
 
   // N+1を避けるため、ユーザー・残高・キャスト名を一括取得
   const [users, grantLedgers, giftLedgers, resetLedgers, allCasts] = await Promise.all([

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { TitleSchema } from "@/lib/validations";
 
 export async function GET() {
@@ -9,10 +9,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const session = await requireFeature("titles");
+  if (session instanceof Response) return session;
 
   const body = await req.json();
   const parsed = TitleSchema.safeParse(body);

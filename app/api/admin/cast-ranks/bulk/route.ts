@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 // POST /api/admin/cast-ranks/bulk
@@ -7,9 +7,8 @@ import { prisma } from "@/lib/prisma";
 // 時給・交通費が無い行は、同名ランクの現在値を引き継ぐ（バック率だけのCSVで消さない）
 // 全件削除 → 再作成
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("salary");
+  if (session instanceof Response) return session;
 
   const body = await req.json();
   const rows: { name: string; backRate: number; order?: number; hourlyWage?: number; commutePaid?: boolean }[] = body.ranks ?? [];

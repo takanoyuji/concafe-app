@@ -5,7 +5,7 @@ vi.mock("@/lib/auth", () => ({ getSession: async () => session.current }));
 
 // メールは送らず、呼ばれた記録だけ取る。fail=true にすると送信失敗を再現する
 const mail = vi.hoisted(() => ({
-  sent: [] as Array<{ kind: string; to: string; customerName: string }>,
+  sent: [] as Array<{ kind: string; to: string; customerName: string; message?: string }>,
   fail: false,
 }));
 vi.mock("@/lib/email", () => {

@@ -1,5 +1,8 @@
 "use client";
 import DailySalesTab from "@/components/admin/DailySalesTab";
+import CastSalesTable from "@/components/admin/CastSalesTable";
+import PermissionsTab from "@/components/admin/PermissionsTab";
+import AdminSidebar from "@/components/admin/AdminSidebar";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import NavBar from "@/components/ui/NavBar";
@@ -38,7 +41,11 @@ interface PeriodDetail { id: string; storeName: string; year: number; month: num
 /** 金額表示。既存の各ブロック内 fmt と同じ書式 */
 const yen = (n: number) => `¥${Math.round(n).toLocaleString()}`;
 
-type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary" | "sales";
+type Tab = "cast" | "points" | "titles" | "menu" | "resets" | "salary" | "sales" | "castSales" | "permissions";
+const TAB_FEATURE: Record<Tab, string> = {
+  cast: "cast", salary: "salary", sales: "store_sales", castSales: "cast_sales", points: "points",
+  titles: "titles", menu: "menu", resets: "resets", permissions: "permissions",
+};
 
 const CAST_EMPTY = { name: "", bio: "", imageUrl: "", storeId: "", order: 0, isPublished: true, retired: false, twitterUrl: "", instagramUrl: "", tiktokUrl: "", airShiftName: "", rank: "", exemptFromCommuteRule: false };
 const MENU_EMPTY = { imageUrl: "", alt: "", order: 0 };
@@ -46,6 +53,21 @@ const RANK_EMPTY = { name: "", backRate: 0, order: 0, hourlyWage: 0, commutePaid
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("cast");
+  // ログイン中のロールと使える機能（/api/auth/me）。サイドバーとタブの出し分けに使う。判定はサーバー側でも行う
+  const [me, setMe] = useState<{ role: string; roleLabel: string | null; features: string[] } | null>(null);
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.ok ? r.json() : null).then(d => {
+      if (!d?.user) return;
+      setMe({ role: d.user.role, roleLabel: d.user.roleLabel ?? null, features: d.user.features ?? [] });
+      // ?tab= で開く項目を指定できる（サイドバーのリンク・予約台帳からの戻り）
+      const want = new URLSearchParams(window.location.search).get("tab") as Tab | null;
+      if (want && TAB_FEATURE[want] && (d.user.features ?? []).includes(TAB_FEATURE[want])) setTab(want);
+    }).catch(() => {});
+  }, []);
+  const selectTab = (key: string) => {
+    setTab(key as Tab);
+    window.history.replaceState(null, "", `/admin?tab=${key}`);
+  };
   const [casts, setCasts] = useState<Cast[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [titles, setTitles] = useState<Title[]>([]);
@@ -550,15 +572,17 @@ export default function AdminPage() {
 
   // キャストの招待（docs/cast-portal-requirements.md 3章）。メールを聞いて招待リンクを送る
   const inviteCast = async (m: CastMaster) => {
-    const email = prompt(`${m.name} さんのキャストページ用メールアドレス（客の会員登録と同じメールは使えません）`);
+    const email = prompt(`${m.name} さんの招待先メールアドレス（客の会員登録と同じメールは使えません）`);
     if (!email) return;
+    // 店長として招待できるのはオーナーだけ（店長の登録は招待時に決める）
+    const role = me?.role === "OWNER" && confirm(`${m.name} さんを「店長」として招待しますか？\nOK＝店長（管理画面が使える） / キャンセル＝キャスト（キャストページのみ）`) ? "MANAGER" : "CAST";
     const res = await fetch(`/api/admin/cast-master/${m.id}/invite`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, role }),
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) { flash(d.error ?? "招待に失敗しました", true); return; }
     if (d.devUrl) { prompt("メール送信が未設定のため、このリンクを本人に渡してください（7日間有効）", d.devUrl); }
-    else flash(`${d.email} に招待メールを送りました（7日間有効）`);
+    else flash(`${d.email} に${d.role === "MANAGER" ? "店長" : "キャスト"}の招待メールを送りました（7日間有効）`);
   };
 
   // 確定 / 確定解除（docs/cast-portal-requirements.md 5章）。確定するとキャストページで「確定」と出て、以後は上書きできない
@@ -850,29 +874,37 @@ export default function AdminPage() {
     } finally { setAggCalculating(false); }
   };
 
-  const TABS: { key: Tab; label: string }[] = [
+  const ALL_TABS: { key: Tab; label: string }[] = [
     { key: "cast",       label: "🐺 キャスト" },
     { key: "salary",     label: "💴 給与計算" },
     { key: "sales",      label: "📈 売上" },
+    { key: "castSales",  label: "🏅 キャスト売上" },
     { key: "points",     label: "⭐ ポイント付与" },
     { key: "titles",     label: "🏆 称号マスタ" },
     { key: "menu",       label: "🍽️ メニュー" },
     { key: "resets",     label: "🔄 リセット履歴" },
+    { key: "permissions", label: "🔐 権限管理" },
   ];
+  const canSee = (t: Tab) => !me || me.features.includes(TAB_FEATURE[t]);
+  const TABS = ALL_TABS.filter(t => canSee(t.key));
 
   return (
     <>
       <NavBar />
-      <main className="min-h-screen pt-24 pb-16 px-4 max-w-4xl mx-auto space-y-6">
-        <h1 className="text-3xl font-black gradient-text text-neon-glow text-center">
+      <main className="min-h-screen pt-24 pb-16 px-4 max-w-6xl mx-auto md:flex md:gap-6 md:items-start">
+        {/* PC はサイドバー。スマホは下のタブ（pill）で切り替える */}
+        {me && <AdminSidebar features={me.features} current={tab} roleLabel={me.roleLabel} onSelect={selectTab} />}
+        <div className="flex-1 min-w-0 space-y-6">
+        <h1 className="text-3xl font-black gradient-text text-neon-glow text-center md:text-left">
           ⚙️ 管理画面
+          {me?.roleLabel && <span className="ml-3 align-middle text-xs font-normal px-2 py-0.5 rounded-full border border-neon-violet/50 text-neon-violet md:hidden">{me.roleLabel}</span>}
         </h1>
 
         {msg && <div className="glass p-4 text-green-400 text-center">{msg}</div>}
         {err && <div className="glass p-4 text-neon-pink text-center">{err}</div>}
 
-        {/* タブ */}
-        <div className="flex gap-2 flex-wrap">
+        {/* タブ（スマホ用。PCはサイドバー） */}
+        <div className="flex gap-2 flex-wrap md:hidden">
           {TABS.map(({ key, label }) => (
             <button
               key={key}
@@ -885,19 +917,21 @@ export default function AdminPage() {
             </button>
           ))}
           {/* 予約台帳は誤操作を防ぐため専用ページにしてある（タブではない） */}
-          <Link
-            href="/admin/reservations"
-            className="px-4 py-2 rounded-full text-sm font-medium glass text-white/60 hover:text-white transition-all"
-          >
-            📖 予約台帳
-          </Link>
+          {(!me || me.features.includes("reservations")) && (
+            <Link
+              href="/admin/reservations"
+              className="px-4 py-2 rounded-full text-sm font-medium glass text-white/60 hover:text-white transition-all"
+            >
+              📖 予約台帳
+            </Link>
+          )}
           <Link href="/me" className="ml-auto text-white/40 hover:text-white/70 text-sm self-center">
             マイページ →
           </Link>
         </div>
 
         {/* キャスト管理 */}
-        {tab === "cast" && (
+        {tab === "cast" && canSee("cast") && (
           <div className="space-y-6">
             <div className="glass p-6 space-y-4">
               <h2 className="font-bold text-star-300">{editingCast ? "キャスト編集" : "キャスト追加"}</h2>
@@ -1187,9 +1221,20 @@ export default function AdminPage() {
         )}
 
         {/* 給与計算 */}
-        {tab === "sales" && <DailySalesTab />}
+        {tab === "sales" && canSee("sales") && <DailySalesTab />}
+        {tab === "castSales" && canSee("castSales") && (
+          <div className="space-y-4">
+            <div className="glass p-4">
+              <h2 className="font-bold text-star-300">🏅 キャスト売上（月別）</h2>
+              <p className="text-xs text-white/50 mt-1">キャストごとの来店 / 遠隔 / 合計（税込）。キャストページの「売上一覧」と同じ表です。</p>
+            </div>
+            <CastSalesTable endpoint="/api/admin/sales/casts" />
+          </div>
+        )}
+        {tab === "permissions" && canSee("permissions") && <PermissionsTab flash={flash} />}
+        {me && !canSee(tab) && <div className="glass p-6 text-center text-white/50 text-sm">この項目を使う権限がありません。</div>}
 
-        {tab === "salary" && (
+        {tab === "salary" && canSee("salary") && (
           <div className="space-y-6">
 
             {/* キャストランク管理 */}
@@ -2114,7 +2159,7 @@ export default function AdminPage() {
         )}
 
         {/* ポイント付与 */}
-        {tab === "points" && (
+        {tab === "points" && canSee("points") && (
           <div className="space-y-6">
             <div className="glass p-6 space-y-4">
               <h2 className="font-bold text-star-300">付与ポイント数を選択</h2>
@@ -2214,7 +2259,7 @@ export default function AdminPage() {
         )}
 
         {/* メニュー管理 */}
-        {tab === "menu" && (
+        {tab === "menu" && canSee("menu") && (
           <div className="space-y-6">
             <div className="glass p-6 space-y-4">
               <h2 className="font-bold text-star-300">{editingMenu ? "メニュー画像編集" : "メニュー画像追加"}</h2>
@@ -2270,7 +2315,7 @@ export default function AdminPage() {
         )}
 
         {/* リセット履歴 */}
-        {tab === "resets" && (
+        {tab === "resets" && canSee("resets") && (
           <div className="space-y-6">
             <div className="glass p-6 space-y-4">
               <div className="flex items-center justify-between">
@@ -2303,7 +2348,7 @@ export default function AdminPage() {
         )}
 
         {/* 称号マスタ */}
-        {tab === "titles" && (
+        {tab === "titles" && canSee("titles") && (
           <div className="space-y-6">
             <div className="glass p-6 space-y-4">
               <h2 className="font-bold text-star-300">{editingTitle ? "称号編集" : "称号追加"}</h2>
@@ -2340,6 +2385,7 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+        </div>
       </main>
     </>
   );

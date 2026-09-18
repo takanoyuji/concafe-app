@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireFeature } from "@/lib/authz";
 import { AdminReservationSchema } from "@/lib/validations";
 import {
   SETTINGS,
@@ -21,9 +21,8 @@ import {
  * 既定では「今日以降」を返す。過去分は from を指定して取る。
  */
 export async function GET(req: Request) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("reservations");
+  if (session instanceof Response) return session;
 
   const url = new URL(req.url);
   const storeId = url.searchParams.get("storeId") ?? "";
@@ -74,9 +73,8 @@ export async function GET(req: Request) {
  * 営業後にまとめて台帳へ入れる運用があるため）。受付経路を必ず記録する。
  */
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session || session.role !== "ADMIN")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await requireFeature("reservations");
+  if (session instanceof Response) return session;
 
   const parsed = AdminReservationSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success)

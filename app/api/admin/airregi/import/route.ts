@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { importAirRegiRaw, findMissingDays } from "@/lib/airregiImport";
 
 /**
@@ -7,7 +8,7 @@ import { importAirRegiRaw, findMissingDays } from "@/lib/airregiImport";
  *
  * 呼び出し元は2つ:
  *   - cron（Bearer CRON_SECRET）… scripts/airregi-fetch.sh の直後に叩く
- *   - 管理画面のADMIN（Cookieセッション）… 手で取り込み直したいとき
+ *   - 管理画面（給与計算の権限があるロール・Cookieセッション）… 手で取り込み直したいとき
  *
  * timeout を避けるため、既定では台帳より新しいファイルだけ取り込む。
  * 全部入れ直したいときは ?force=1。
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   if (!byCron) {
     const session = await getSession();
-    if (!session || session.role !== "ADMIN") {
+    if (!session || !(await can(session.role, "salary"))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
 /** 取り込み状況の確認だけ。管理画面が「取れていない営業日」を出すのに使う */
 export async function GET() {
   const session = await getSession();
-  if (!session || session.role !== "ADMIN") {
+  if (!session || !(await can(session.role, "salary"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const missing = await findMissingDays();
