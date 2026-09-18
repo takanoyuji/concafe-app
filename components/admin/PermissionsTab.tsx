@@ -59,7 +59,7 @@ export default function PermissionsTab({ flash }: { flash: (m: string, isErr?: b
         <h2 className="font-bold text-star-300">🔐 ロールごとの権限</h2>
         <p className="text-xs text-white/50">
           オーナーは常にすべて使えます。店長・キャストの可否をここで切り替えます（変更はすぐ効きます）。
-          キャストの「報酬」（本人分）は権限に関係なく常に見られます。
+          キャストの「報酬」（本人分）は権限に関係なく常に見られます。キャスト別売上は既定でオーナーのみです。
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm" data-testid="permissions-table">

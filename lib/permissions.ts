@@ -4,8 +4,8 @@
  * ロールは4つ。旧 "ADMIN" は OWNER の別名として読む（本番の既存ユーザーと発行済みセッションのため）。
  *
  *   OWNER    … オーナー。全部できる。権限管理と店長の招待はここだけ
- *   MANAGER  … 店長。全店舗共通。既定では権限管理以外すべて
- *   CAST     … キャスト本人。自分の報酬は常に見られる。キャスト別売上は既定で可
+ *   MANAGER  … 店長。全店舗共通。既定では権限管理とキャスト別売上以外すべて
+ *   CAST     … キャスト本人。自分の報酬は常に見られる。それ以外は既定で不可
  *   CUSTOMER … 客。管理側の機能は無い。ロールの表示もしない
  *
  * 機能ごとの可否は「機能 × ロール」の表で持ち、OWNER が権限管理で MANAGER / CAST の行を切り替える。
@@ -53,7 +53,7 @@ export const FEATURES: { key: Feature; label: string; icon: string; description:
   { key: "cast",         label: "キャスト",     icon: "👤", description: "キャストの表示・マスタ・招待" },
   { key: "salary",       label: "給与計算",     icon: "💴", description: "給与計算・ランク・Airレジ取込・確定" },
   { key: "store_sales",  label: "売上",         icon: "📈", description: "店舗ごとの日次売上（来店 / 遠隔）" },
-  { key: "cast_sales",   label: "キャスト売上", icon: "🏅", description: "キャスト別の月次売上（来店 / 遠隔）" },
+  { key: "cast_sales",   label: "キャスト売上", icon: "🏅", description: "キャスト別の月次売上（来店 / 遠隔）。既定はオーナーのみ" },
   { key: "points",       label: "ポイント付与", icon: "⭐", description: "会員へのポイント付与" },
   { key: "titles",       label: "称号マスタ",   icon: "🏆", description: "称号の登録・編集" },
   { key: "menu",         label: "メニュー",     icon: "🍽️", description: "メニューの登録・編集" },
@@ -62,13 +62,14 @@ export const FEATURES: { key: Feature; label: string; icon: string; description:
   { key: "permissions",  label: "権限管理",     icon: "🔐", description: "ロールごとの権限と店長の招待", ownerOnly: true },
 ];
 
-/** 既定の可否。権限管理で上書きできるのは MANAGER と CAST の行だけ */
+/** 既定の可否。権限管理で上書きできるのは MANAGER と CAST の行だけ。
+ *  キャスト別売上（cast_sales）は既定でオーナーのみ（2026-09-18 代表判断。他人の売上は見せない） */
 const DEFAULTS: Record<Exclude<Role, "OWNER">, Partial<Record<Feature, boolean>>> = {
   MANAGER: {
-    cast: true, salary: true, store_sales: true, cast_sales: true, points: true,
+    cast: true, salary: true, store_sales: true, cast_sales: false, points: true,
     titles: true, menu: true, resets: true, reservations: true, permissions: false,
   },
-  CAST: { cast_sales: true },
+  CAST: {},
   CUSTOMER: {},
 };
 

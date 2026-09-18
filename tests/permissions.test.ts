@@ -27,20 +27,22 @@ describe("ロール", () => {
 });
 
 describe("機能 × ロールの既定", () => {
-  it("OWNER は全部。MANAGER は権限管理以外全部。CAST はキャスト売上だけ。CUSTOMER は無し", async () => {
+  it("OWNER は全部。MANAGER は権限管理とキャスト売上以外全部。CAST と CUSTOMER は無し（キャスト別売上はオーナーのみ）", async () => {
     for (const f of FEATURES) expect(await can("OWNER", f.key)).toBe(true);
-    expect(await allowedFeatures("MANAGER")).toEqual(FEATURES.filter(f => f.key !== "permissions").map(f => f.key));
-    expect(await allowedFeatures("CAST")).toEqual(["cast_sales"]);
+    expect(await allowedFeatures("MANAGER")).toEqual(FEATURES.filter(f => f.key !== "permissions" && f.key !== "cast_sales").map(f => f.key));
+    expect(await allowedFeatures("CAST")).toEqual([]);
     expect(await allowedFeatures("CUSTOMER")).toEqual([]);
+    expect(await can("CAST", "cast_sales")).toBe(false);
+    expect(await can("MANAGER", "cast_sales")).toBe(false);
   });
 
   it("権限管理の上書きが効く。OWNER と『権限管理』の行は変えられない", async () => {
-    await prisma.rolePermission.create({ data: { role: "CAST", feature: "cast_sales", allowed: false } });
+    await prisma.rolePermission.create({ data: { role: "CAST", feature: "cast_sales", allowed: true } });
     await prisma.rolePermission.create({ data: { role: "MANAGER", feature: "salary", allowed: false } });
     await prisma.rolePermission.create({ data: { role: "CAST", feature: "store_sales", allowed: true } });
     await prisma.rolePermission.create({ data: { role: "MANAGER", feature: "permissions", allowed: true } }); // 無視される
     clearPermissionCache();
-    expect(await can("CAST", "cast_sales")).toBe(false);
+    expect(await can("CAST", "cast_sales")).toBe(true);
     expect(await can("CAST", "store_sales")).toBe(true);
     expect(await can("MANAGER", "salary")).toBe(false);
     expect(await can("MANAGER", "permissions")).toBe(false);
