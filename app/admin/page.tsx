@@ -1,7 +1,7 @@
 "use client";
 import DailySalesTab from "@/components/admin/DailySalesTab";
 import CastSalesTable from "@/components/admin/CastSalesTable";
-import PermissionsTab from "@/components/admin/PermissionsTab";
+import PermissionsTab, { showInitialPassword } from "@/components/admin/PermissionsTab";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -572,17 +572,22 @@ export default function AdminPage() {
 
   // キャストの招待（docs/cast-portal-requirements.md 3章）。メールを聞いて招待リンクを送る
   const inviteCast = async (m: CastMaster) => {
+    // 打ち間違い対策: メールは2回入力。初期パスワードはメールに載せず、この画面に1回だけ出す
     const email = prompt(`${m.name} さんの招待先メールアドレス（客の会員登録と同じメールは使えません）`);
     if (!email) return;
+    const emailConfirm = prompt(`確認のため、もう一度メールアドレスを入力してください`);
+    if (!emailConfirm) return;
+    if (email.trim().toLowerCase() !== emailConfirm.trim().toLowerCase()) { flash("メールアドレスが一致しません。もう一度やり直してください", true); return; }
     // 店長として招待できるのはオーナーだけ（店長の登録は招待時に決める）
     const role = me?.role === "OWNER" && confirm(`${m.name} さんを「店長」として招待しますか？\nOK＝店長（管理画面が使える） / キャンセル＝キャスト（キャストページのみ）`) ? "MANAGER" : "CAST";
     const res = await fetch(`/api/admin/cast-master/${m.id}/invite`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, role }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, emailConfirm, role }),
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) { flash(d.error ?? "招待に失敗しました", true); return; }
-    if (d.devUrl) { prompt("メール送信が未設定のため、このリンクを本人に渡してください（7日間有効）", d.devUrl); }
-    else flash(`${d.email} に${d.role === "MANAGER" ? "店長" : "キャスト"}の招待メールを送りました（7日間有効）`);
+    showInitialPassword(d.email, d.initialPassword, d.expiresAt);
+    flash(`${d.email} に${d.role === "MANAGER" ? "店長" : "キャスト"}のログイン案内メールを送りました（パスワードは載せていません。本人に別途渡してください）`);
+    fetchAll();
   };
 
   // 確定 / 確定解除（docs/cast-portal-requirements.md 5章）。確定するとキャストページで「確定」と出て、以後は上書きできない

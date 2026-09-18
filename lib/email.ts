@@ -252,3 +252,37 @@ export async function sendCastInviteEmail(email: string, castName: string, token
   });
   return undefined;
 }
+
+/**
+ * スタッフ招待のメール（初期パスワード方式）。**パスワードは載せない**。
+ * ログインIDとURLだけ。パスワードは店長が別経路（LINE / 口頭）で渡す。
+ * Resend 未設定のときはリンクを返す（管理画面に出す）
+ */
+export async function sendStaffInviteEmail(email: string, castName: string, role: "CAST" | "MANAGER"): Promise<string | undefined> {
+  const url = `${BASE}/auth/login`;
+  const what = role === "MANAGER" ? "店長用の管理画面" : "キャストページ";
+
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`\n[DEV EMAIL] スタッフ招待（${role}） for ${email}: ${url}\n`);
+    return url;
+  }
+
+  await sendEmail({
+    to: email,
+    subject: `【星狼】${what}のご案内`,
+    html: `
+      <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        <h2>星狼 ${what}</h2>
+        <p>${escapeHtml(castName || email)} さん</p>
+        <p>${what}のアカウントをご用意しました。</p>
+        <table style="border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:4px 12px 4px 0;color:#666">ログインID</td><td style="padding:4px 0">${escapeHtml(email)}</td></tr>
+          <tr><td style="padding:4px 12px 4px 0;color:#666">ログイン</td><td style="padding:4px 0"><a href="${url}">${url}</a></td></tr>
+        </table>
+        <p><strong>パスワードは店舗の担当者から別途お伝えします。</strong>このメールには含まれていません。</p>
+        <p style="color:#666;font-size:12px">初回ログイン時にパスワードの変更をお願いします。3日以内にログインが無い場合は、お伝えしたパスワードは無効になります（担当者に再発行を依頼してください）。</p>
+      </div>
+    `,
+  });
+  return undefined;
+}

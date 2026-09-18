@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { isDisabledUser } from "@/lib/authz";
 import { getCastByUserId, castRewardsByMonth, recentMonths } from "@/lib/castPortal";
 
 /**
@@ -8,7 +9,7 @@ import { getCastByUserId, castRewardsByMonth, recentMonths } from "@/lib/castPor
  */
 export async function GET() {
   const session = await getSession();
-  if (!session || session.role !== "CAST") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session || session.role !== "CAST" || (await isDisabledUser(session.userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const cast = await getCastByUserId(session.userId);
   if (!cast) return NextResponse.json({ error: "キャスト情報が結ばれていません。店舗に連絡してください" }, { status: 404 });
 

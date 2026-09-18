@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { LoginSchema } from "@/lib/validations";
 import { createSessionToken, setSessionCookie, SessionPayload } from "@/lib/auth";
+import { loginBlockReason } from "@/lib/staffInvite";
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,6 +29,12 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
+
+    // 停止中・初期パスワードの期限切れ（招待から3日ログインなし）は入れない
+    const blocked = loginBlockReason(user);
+    if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
     const payload: SessionPayload = {
       userId: user.id,

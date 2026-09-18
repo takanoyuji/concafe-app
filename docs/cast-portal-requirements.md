@@ -30,6 +30,8 @@
 
 ## 3. 招待
 
+> **2026-09-18 変更**: 初期パスワード方式に置き換えた（`docs/roles-and-permissions.md`）。以下はそれ以前の設計。
+
 - キャストマスタの行に「招待」ボタン → メールアドレス入力 → `CastInviteToken`（castId, email, tokenHash, expiresAt=7日, usedAt）を作り、Resend で招待メールを送る
 - リンク `/cast/invite/[token]` → パスワード設定 → `User(role=CAST, emailVerified=true)` を作成し `Cast.userId` に結ぶ → `/cast/me` へ
 - 既に結ばれているキャストは再招待不可（解除は管理画面から `userId` を外す操作を別途）。既存ユーザーのメールなら拒否

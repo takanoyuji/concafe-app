@@ -16,6 +16,14 @@ model User {
   birthdate          DateTime?
   ageVerified        Boolean   @default(false)
   name               String?
+  /// スタッフ（店長・キャスト）の招待。誰がいつ招待したか
+  invitedByUserId    String?
+  invitedAt          DateTime?
+  /// 初期パスワードの有効期限。これまでに一度もログインしなければ失効（再発行で延ばす）
+  initialPasswordExpiresAt DateTime?
+  lastLoginAt        DateTime?
+  /// 停止。セッションがあっても管理側・キャスト側の機能は 403
+  disabledAt         DateTime?
   favoriteStoreId    String?
   favoriteCast1Id    String?
   favoriteCast2Id    String?

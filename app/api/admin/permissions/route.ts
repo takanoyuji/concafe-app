@@ -12,18 +12,30 @@ export async function GET() {
     getPermissionTable(),
     prisma.user.findMany({
       where: { role: { in: ["OWNER", "ADMIN", "MANAGER", "CAST"] } },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, createdAt: true, invitedAt: true, invitedByUserId: true, initialPasswordExpiresAt: true, lastLoginAt: true, disabledAt: true, mustChangePassword: true },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     }),
   ]);
   const casts = await prisma.cast.findMany({ where: { userId: { not: null } }, select: { userId: true, name: true, castCode: true } });
   const castByUser = new Map(casts.map(c => [c.userId!, c]));
+  const emailById = new Map(users.map(u => [u.id, u.email]));
   return NextResponse.json({
     features: FEATURES,
     table,
     staff: users.map(u => {
       const role = normalizeRole(u.role);
-      return { id: u.id, email: u.email, name: u.name, role, roleLabel: ROLE_LABEL[role], cast: castByUser.get(u.id) ?? null, createdAt: u.createdAt };
+      const now = new Date();
+      // 状態: 停止 / 未ログイン（初期PWのまま。期限内 or 期限切れ）/ 有効
+      const status =
+        u.disabledAt ? "disabled"
+        : !u.lastLoginAt && u.initialPasswordExpiresAt ? (u.initialPasswordExpiresAt > now ? "invited" : "expired")
+        : "active";
+      return {
+        id: u.id, email: u.email, name: u.name, role, roleLabel: ROLE_LABEL[role],
+        cast: castByUser.get(u.id) ?? null, createdAt: u.createdAt,
+        status, invitedAt: u.invitedAt, invitedBy: u.invitedByUserId ? (emailById.get(u.invitedByUserId) ?? "") : "",
+        initialPasswordExpiresAt: u.initialPasswordExpiresAt, lastLoginAt: u.lastLoginAt, disabledAt: u.disabledAt,
+      };
     }),
   });
 }

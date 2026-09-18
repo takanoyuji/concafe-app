@@ -1,28 +1,23 @@
 import { NextResponse } from "next/server";
-import { createHash, randomBytes } from "crypto";
 import { requireFeature } from "@/lib/authz";
-import { prisma } from "@/lib/prisma";
-import { sendCastInviteEmail } from "@/lib/email";
+import { inviteStaff, InviteError } from "@/lib/staffInvite";
 
 /**
- * POST /api/admin/permissions/invite  { email }
- * キャストマスタに無い店長を招待する（OWNER だけ）。受諾すると role=MANAGER のユーザーになる
+ * POST /api/admin/permissions/invite  { email, emailConfirm }
+ * キャストマスタに無い店長を招待する（OWNER だけ）。初期パスワード方式。応答の initialPassword は1回しか出ない
  */
 export async function POST(req: Request) {
   const session = await requireFeature("permissions");
   if (session instanceof Response) return session;
   const body = await req.json().catch(() => ({}));
-  const email = String(body.email ?? "").trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ error: "メールアドレスの形式が正しくありません" }, { status: 400 });
+  try {
+    const r = await inviteStaff({
+      email: String(body.email ?? ""), emailConfirm: String(body.emailConfirm ?? ""),
+      role: "MANAGER", castId: null, invitedByUserId: session.userId,
+    });
+    return NextResponse.json({ ok: true, ...r });
+  } catch (e) {
+    if (e instanceof InviteError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
-  if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
-    return NextResponse.json({ error: "このメールアドレスは既に登録されています" }, { status: 409 });
-  }
-  const raw = randomBytes(32).toString("base64url");
-  const tokenHash = createHash("sha256").update(raw).digest("hex");
-  const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000);
-  await prisma.castInviteToken.create({ data: { castId: null, email, role: "MANAGER", tokenHash, expiresAt } });
-  const devUrl = await sendCastInviteEmail(email, "", raw, "MANAGER");
-  return NextResponse.json({ ok: true, email, role: "MANAGER", expiresAt, ...(devUrl ? { devUrl } : {}) });
 }

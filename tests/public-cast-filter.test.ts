@@ -21,6 +21,7 @@ const ALLOWLIST: Record<string, string> = {
   "app/api/cast/route.ts": "管理者の includeHidden=1 のときだけ undefined にする分岐あり（既定はフィルタ済み）",
   "app/api/sync/cast-master/route.ts": "外部システム向けの同期API。トークン認証済みで、退職者も含めて全件返す必要がある",
   "lib/castPortal.ts": "キャストポータル（role=CAST のログイン必須）と管理画面の集計。給与計算と同じ retired=false で引き、HP非公開のキャストも本人・店長には見せる",
+  "lib/staffInvite.ts": "スタッフの招待（管理側・requireFeature 経由）。招待対象のキャストを id で引くだけで、公開側の表示ではない",
   "lib/rank.ts": "給与計算のランク解決。公開ページからは呼ばれない",
 };
 
